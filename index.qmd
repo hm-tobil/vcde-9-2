@@ -7,10 +7,31 @@ format:
 jupyter: python3
 bibliography: references.bib
 ---
+### vSLAM Ergebnis (TUM Dataset)
 
-## Abstract
-Nach @knuth1984 ist TeX...
-This is a single-file Quarto website hosted on GitHub Pages. It combines Markdown text, LaTeX math, and interactive 3D elements.
+<video width="100%" controls>
+  <source src="video.mp4" type="video/mp4">
+  Dein Browser unterstützt keine Videos.
+</video>
+
+# Die Mathematik hinter vSLAM
+
+Um zu verstehen, wie eine Kamera ihre Position im Raum bestimmt, nutzen wir die **Epipolargeometrie**.
+
+## Die Essential Matrix
+Wenn wir zwei Bilder derselben Szene aus verschiedenen Winkeln haben, beschreibt die Essential Matrix $E$ die geometrische Beziehung zwischen ihnen:
+
+$$E = [t]_{\times} R$$
+
+Dabei ist:
+* $t$ der Translationsvektor (Bewegung).
+* $R$ die Rotationsmatrix (Drehung).
+* $[t]_{\times}$ die schiefsymmetrische Matrix von $t$.
+
+
+
+## Von 2D zu 3D (Triangulation)
+Sobald wir die Matrizen kennen, können wir durch Triangulation die Tiefe $Z$ eines Punktes berechnen.
 
 ```{python}
 #| label: fig-polar
