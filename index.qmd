@@ -47,7 +47,7 @@ Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algor
 extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte 
 Punktewolke, die auf der realen Umgebung liegt.
 
-![Oben: vSLAM, Unten: normales SLAM]
+![Oben: vSLAM, Unten: normales SLAM](medien/vc_anlage_1.png)
 
 ## 1.2 Visuelle Odometrie
 
