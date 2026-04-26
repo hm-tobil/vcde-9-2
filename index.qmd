@@ -1,6 +1,6 @@
 ---
 title: "My Awesome Paper Title"
-author: "Your Name"
+author: "Gruppe 9-2"
 format:
   html:
     theme: cosmo
