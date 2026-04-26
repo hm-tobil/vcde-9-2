@@ -10,7 +10,7 @@ bibliography: references.bib
 ### vSLAM Ergebnis (TUM Dataset)
 
 <video width="100%" controls>
-  <source src="video.mp4" type="video/mp4">
+  <source src="medien/video.mp4" type="video/mp4">
   Dein Browser unterstützt keine Videos.
 </video>
 
@@ -24,7 +24,7 @@ Anwendungsbereiche im Detail:
 - Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und 
   Erstellung von Karten unbekannter Umgebungen/ Räume.
 
-– Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
+- Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
   und virtuelle Objekte exakt in die reale Welt einzubetten.
    
 - Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung 
@@ -37,15 +37,17 @@ Anwendungsbereiche im Detail:
 # Zentrale Komponenten des VSLAM Algorithmus
 
 Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden:
-1. Feature Extraction und visuelle Odometrie
-2. Lokales Mapping und Optimierung
-3. Loop Closure und globale Optimierung
+- Feature Extraction und visuelle Odometrie
+- Lokales Mapping und Optimierung
+- Loop Closure und globale Optimierung
 
 ## 1.1 Feature Extraction
 Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR).
 Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten 
 extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte 
 Punktewolke, die auf der realen Umgebung liegt.
+
+![Oben: vSLAM, Unten: normales SLAM]
 
 ## 1.2 Visuelle Odometrie
 
