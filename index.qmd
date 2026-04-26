@@ -10,7 +10,7 @@ bibliography: references.bib
 ### vSLAM Ergebnis (TUM Dataset)
 
 <video width="100%" controls>
-  <source src="medien/video.mp4" type="video/mp4">
+  <source src="images/video.mp4" type="video/mp4">
   Dein Browser unterstützt keine Videos.
 </video>
 
