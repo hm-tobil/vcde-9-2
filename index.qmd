@@ -1,6 +1,6 @@
 ---
-title: "My Awesome Paper Title"
-author: "Gruppe 9-2"
+title: "vSLAM"
+author: "Gruppe 9-2 (Tobias, Kilian, Nediljko)"
 format:
   html:
     theme: cosmo
@@ -14,9 +14,49 @@ bibliography: references.bib
   Dein Browser unterstützt keine Videos.
 </video>
 
-# Die Mathematik hinter vSLAM
+# vSLAM – Use Cases und grundlegende Funktionsweise
+vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
+kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie 
+Indoor-Navigation (Saugroboter).
 
-Um zu verstehen, wie eine Kamera ihre Position im Raum bestimmt, nutzen wir die **Epipolargeometrie**.
+Anwendungsbereiche im Detail:
+
+- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und 
+  Erstellung von Karten unbekannter Umgebungen/ Räume.
+
+– Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
+  und virtuelle Objekte exakt in die reale Welt einzubetten.
+   
+- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung 
+  (etwa zum Halten der Spur etc.).
+
+- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in 
+  Logistikzentren oder für Roboter in Lagerhallen.
+
+
+# Zentrale Komponenten des VSLAM Algorithmus
+
+Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden:
+1. Feature Extraction und visuelle Odometrie
+2. Lokales Mapping und Optimierung
+3. Loop Closure und globale Optimierung
+
+## 1.1 Feature Extraction
+Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR).
+Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten 
+extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte 
+Punktewolke, die auf der realen Umgebung liegt.
+
+## 1.2 Visuelle Odometrie
+
+## 2.1 Lokales Mapping
+
+## 2.2 Lokale Optimierung
+
+## 3.1 Loop Closure 
+
+## 3.2 Globale Optimierung
+
 
 ## Die Essential Matrix
 Wenn wir zwei Bilder derselben Szene aus verschiedenen Winkeln haben, beschreibt die Essential Matrix $E$ die geometrische Beziehung zwischen ihnen:
@@ -35,7 +75,7 @@ Sobald wir die Matrizen kennen, können wir durch Triangulation die Tiefe $Z$ ei
 
 ```{python}
 #| label: fig-polar
-#| fig-cap: "A line plot on a polar axis"
+#| fig-cap: "Linienplot im polaren Koordinatensystem"
 
 import numpy as np
 import matplotlib.pyplot as plt
