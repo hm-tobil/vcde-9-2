@@ -6,9 +6,9 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="author" content="Your Name">
+<meta name="author" content="Gruppe 9-2 (Tobias, Kilian, Nediljko)">
 
-<title>My Awesome Paper Title</title>
+<title>vSLAM</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -151,7 +151,7 @@ window.Quarto = {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">My Awesome Paper Title</h1>
+<h1 class="title">vSLAM</h1>
 </div>
 
 
@@ -161,7 +161,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Author</div>
     <div class="quarto-title-meta-contents">
-             <p>Your Name </p>
+             <p>Gruppe 9-2 (Tobias, Kilian, Nediljko) </p>
           </div>
   </div>
     
@@ -180,9 +180,41 @@ window.Quarto = {
 <source src="video.mp4" type="video/mp4">
 <p>Dein Browser unterstützt keine Videos. </p>
 </video></section>
-<section id="die-mathematik-hinter-vslam" class="level1">
-<h1>Die Mathematik hinter vSLAM</h1>
-<p>Um zu verstehen, wie eine Kamera ihre Position im Raum bestimmt, nutzen wir die <strong>Epipolargeometrie</strong>.</p>
+<section id="vslam-use-cases-und-grundlegende-funktionsweise" class="level1">
+<h1>vSLAM – Use Cases und grundlegende Funktionsweise</h1>
+<p>vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie Indoor-Navigation (Saugroboter).</p>
+<p>Anwendungsbereiche im Detail:</p>
+<ul>
+<li>Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und Erstellung von Karten unbekannter Umgebungen/ Räume.</li>
+</ul>
+<p>– Augmented &amp; Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen und virtuelle Objekte exakt in die reale Welt einzubetten.</p>
+<ul>
+<li><p>Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung (etwa zum Halten der Spur etc.).</p></li>
+<li><p>Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in Logistikzentren oder für Roboter in Lagerhallen.</p></li>
+</ul>
+</section>
+<section id="zentrale-komponenten-des-vslam-algorithmus" class="level1">
+<h1>Zentrale Komponenten des VSLAM Algorithmus</h1>
+<p>Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden: 1. Feature Extraction und visuelle Odometrie 2. Lokales Mapping und Optimierung 3. Loop Closure und globale Optimierung</p>
+<section id="feature-extraction" class="level2">
+<h2 class="anchored" data-anchor-id="feature-extraction">1.1 Feature Extraction</h2>
+<p>Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.</p>
+</section>
+<section id="visuelle-odometrie" class="level2">
+<h2 class="anchored" data-anchor-id="visuelle-odometrie">1.2 Visuelle Odometrie</h2>
+</section>
+<section id="lokales-mapping" class="level2">
+<h2 class="anchored" data-anchor-id="lokales-mapping">2.1 Lokales Mapping</h2>
+</section>
+<section id="lokale-optimierung" class="level2">
+<h2 class="anchored" data-anchor-id="lokale-optimierung">2.2 Lokale Optimierung</h2>
+</section>
+<section id="loop-closure" class="level2">
+<h2 class="anchored" data-anchor-id="loop-closure">3.1 Loop Closure</h2>
+</section>
+<section id="globale-optimierung" class="level2">
+<h2 class="anchored" data-anchor-id="globale-optimierung">3.2 Globale Optimierung</h2>
+</section>
 <section id="die-essential-matrix" class="level2">
 <h2 class="anchored" data-anchor-id="die-essential-matrix">Die Essential Matrix</h2>
 <p>Wenn wir zwei Bilder derselben Szene aus verschiedenen Winkeln haben, beschreibt die Essential Matrix <span class="math inline">\(E\)</span> die geometrische Beziehung zwischen ihnen:</p>
@@ -212,7 +244,7 @@ window.Quarto = {
 <img src="index_files/figure-html/fig-polar-output-1.png" width="450" height="439" class="figure-img">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-polar-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: A line plot on a polar axis
+Figure&nbsp;1: Linienplot im polaren Koordinatensystem
 </figcaption>
 </figure>
 </div>
