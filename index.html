@@ -177,7 +177,7 @@ window.Quarto = {
 <section id="vslam-ergebnis-tum-dataset" class="level3">
 <h3 class="anchored" data-anchor-id="vslam-ergebnis-tum-dataset">vSLAM Ergebnis (TUM Dataset)</h3>
 <video width="100%" controls="">
-<source src="video.mp4" type="video/mp4">
+<source src="medien/video.mp4" type="video/mp4">
 <p>Dein Browser unterstützt keine Videos. </p>
 </video></section>
 <section id="vslam-use-cases-und-grundlegende-funktionsweise" class="level1">
@@ -185,20 +185,19 @@ window.Quarto = {
 <p>vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie Indoor-Navigation (Saugroboter).</p>
 <p>Anwendungsbereiche im Detail:</p>
 <ul>
-<li>Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und Erstellung von Karten unbekannter Umgebungen/ Räume.</li>
-</ul>
-<p>– Augmented &amp; Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen und virtuelle Objekte exakt in die reale Welt einzubetten.</p>
-<ul>
+<li><p>Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und Erstellung von Karten unbekannter Umgebungen/ Räume.</p></li>
+<li><p>Augmented &amp; Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen und virtuelle Objekte exakt in die reale Welt einzubetten.</p></li>
 <li><p>Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung (etwa zum Halten der Spur etc.).</p></li>
 <li><p>Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in Logistikzentren oder für Roboter in Lagerhallen.</p></li>
 </ul>
 </section>
 <section id="zentrale-komponenten-des-vslam-algorithmus" class="level1">
 <h1>Zentrale Komponenten des VSLAM Algorithmus</h1>
-<p>Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden: 1. Feature Extraction und visuelle Odometrie 2. Lokales Mapping und Optimierung 3. Loop Closure und globale Optimierung</p>
+<p>Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden: - Feature Extraction und visuelle Odometrie - Lokales Mapping und Optimierung - Loop Closure und globale Optimierung</p>
 <section id="feature-extraction" class="level2">
 <h2 class="anchored" data-anchor-id="feature-extraction">1.1 Feature Extraction</h2>
 <p>Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.</p>
+<p>![Oben: vSLAM, Unten: normales SLAM]</p>
 </section>
 <section id="visuelle-odometrie" class="level2">
 <h2 class="anchored" data-anchor-id="visuelle-odometrie">1.2 Visuelle Odometrie</h2>

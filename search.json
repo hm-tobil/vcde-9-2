@@ -11,7 +11,7 @@
     "href": "index.html#feature-extraction",
     "title": "vSLAM",
     "section": "1.1 Feature Extraction",
-    "text": "1.1 Feature Extraction\nDas Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt."
+    "text": "1.1 Feature Extraction\nDas Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.\n![Oben: vSLAM, Unten: normales SLAM]"
   },
   {
     "objectID": "index.html#visuelle-odometrie",
