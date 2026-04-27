@@ -196,7 +196,7 @@ window.Quarto = {
 <p>Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden: - Feature Extraction und visuelle Odometrie - Lokales Mapping und Optimierung - Loop Closure und globale Optimierung</p>
 <section id="feature-extraction" class="level2">
 <h2 class="anchored" data-anchor-id="feature-extraction">1.1 Feature Extraction</h2>
-<p>Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.</p>
+<p>Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.</p>
 <div style="text-align: center;">
   <img src="images/vc_anlage_1.png" width="60%">
   <figcaption>Oben: visual SLAM, Unten: normales SLAM</figcaption>
@@ -204,12 +204,25 @@ window.Quarto = {
 </section>
 <section id="visuelle-odometrie" class="level2">
 <h2 class="anchored" data-anchor-id="visuelle-odometrie">1.2 Visuelle Odometrie</h2>
+<p>Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum) basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern des Pre-Zustandes abgeglichen und somit die Bewegung approximiert. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen voraus (Frame to Frame) und nennt sich ‘Feature Matching’. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann über Stereo-Kameras erreicht werden.</p>
+<div style="text-align: center;">
+  <img src="images/vc_anlage_2.gif" width="60%">
+  <figcaption>Kamerabewegung mit visueller Odometrie in Echtzeit</figcaption>
+</div>
+<p>Exkurs: Alternative Ansätze zur Bewegungsbestimmung einer Kamera mittels VIO (Visual Inertial Odometry) TBD</p>
 </section>
 <section id="lokales-mapping" class="level2">
 <h2 class="anchored" data-anchor-id="lokales-mapping">2.1 Lokales Mapping</h2>
+<p>Das lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik: Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.</p>
+<div style="text-align: center;">
+  <img src="images/vc_anlage_3.png" width="60%">
+  <figcaption>Mapping Prozess eines Frames in Action</figcaption>
+</div>
+<p>Das System erstellt so eine Trajektorie, die eine zuvor unbekannte Umgebung kartiert und die Position der Kamera enthält.</p>
 </section>
 <section id="lokale-optimierung" class="level2">
 <h2 class="anchored" data-anchor-id="lokale-optimierung">2.2 Lokale Optimierung</h2>
+<p>Nach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.</p>
 </section>
 <section id="loop-closure" class="level2">
 <h2 class="anchored" data-anchor-id="loop-closure">3.1 Loop Closure</h2>
