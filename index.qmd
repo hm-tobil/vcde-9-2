@@ -1,5 +1,5 @@
 ---
-title: "vSLAM"
+title: "vSLAM – Virtual Simultaneous Localization and Mapping"
 author: "Gruppe 9-2 (Tobias, Kilian, Nediljko)"
 format:
   html:
@@ -17,7 +17,7 @@ bibliography: references.bib
 # vSLAM – Use Cases und grundlegende Funktionsweise
 vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
 kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie 
-Indoor-Navigation (Saugroboter).
+Indoor-Navigation (z.B. Saugroboter).
 
 Anwendungsbereiche im Detail:
 
@@ -28,7 +28,7 @@ Anwendungsbereiche im Detail:
   und virtuelle Objekte exakt in die reale Welt einzubetten.
    
 - Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung 
-  (etwa zum Halten der Spur etc.).
+  (Spurhalteassistent etc.).
 
 - Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in 
   Logistikzentren oder für Roboter in Lagerhallen.
@@ -44,6 +44,7 @@ Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile auf
 
 - Loop Closure und globale Optimierung
 
+
 ## 1.1 Feature Extraction
 Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR).
 Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten 
@@ -57,13 +58,17 @@ Punktewolke, die auf der realen Umgebung liegt.
 </div>
 ```
 
+TBD: inhaltliche/ technische Tiefe erweitern
+
 ## 1.2 Visuelle Odometrie
 Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum)
 basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern
-des Pre-Zustandes abgeglichen und somit die Bewegung approximiert. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen
+des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen
 voraus (Frame to Frame) und nennt sich 'Feature Matching'. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der 
 Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann
 über Stereo-Kameras erreicht werden.
+
+TBD: inhaltliche/ technische Tiefe erweitern
 
 ```{=html}
 <div style="text-align: center;">
@@ -86,6 +91,8 @@ Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korr
 </div>
 ```
 
+TBD: Prinzip des Mappings + detaillierte Erklärung
+
 ## 2.2 Lokale Optimierung
 Nach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch
 mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist 
@@ -104,7 +111,25 @@ ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.
 
 ## 3.1 Loop Closure 
 
+TBD: Mathematisches Prinzip +  visuelle Veranschaulichung 
+
 ## 3.2 Globale Optimierung
+
+TBD
+
+## Visualisierung der vSLAM Pipeline
+
+TBD: Veranschaulichung der oben erklärten Theorie: etwa Visualisierung durch Slideshow in der jeder Slide
+einem Step des Workflows entspricht. Ideen: 
+
+- Entstehung der Punktewolke interaktiv einbetten
+
+- Mapping und Optimierungsschritte bildlich darstellen
+
+- Mappen deines Gebäudes mittels OS vSLAM Anwendungen 
+
+- Vergleich von günstigen/ ungünstigen Umgebungen für die vSLAM Technologie bezogen auf Texturen, Objekte, Gradienten im Bild
+
 
 
 ## Die Essential Matrix
