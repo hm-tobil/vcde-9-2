@@ -8,7 +8,7 @@
 
 <meta name="author" content="Gruppe 9-2 (Tobias, Kilian, Nediljko)">
 
-<title>vSLAM</title>
+<title>vSLAM – Virtual Simultaneous Localization and Mapping</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -151,7 +151,7 @@ window.Quarto = {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">vSLAM</h1>
+<h1 class="title">vSLAM – Virtual Simultaneous Localization and Mapping</h1>
 </div>
 
 
@@ -182,12 +182,12 @@ window.Quarto = {
 </video></section>
 <section id="vslam-use-cases-und-grundlegende-funktionsweise" class="level1">
 <h1>vSLAM – Use Cases und grundlegende Funktionsweise</h1>
-<p>vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie Indoor-Navigation (Saugroboter).</p>
+<p>vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie Indoor-Navigation (z.B. Saugroboter).</p>
 <p>Anwendungsbereiche im Detail:</p>
 <ul>
 <li><p>Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und Erstellung von Karten unbekannter Umgebungen/ Räume.</p></li>
 <li><p>Augmented &amp; Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen und virtuelle Objekte exakt in die reale Welt einzubetten.</p></li>
-<li><p>Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung (etwa zum Halten der Spur etc.).</p></li>
+<li><p>Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung (Spurhalteassistent etc.).</p></li>
 <li><p>Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in Logistikzentren oder für Roboter in Lagerhallen.</p></li>
 </ul>
 </section>
@@ -206,10 +206,12 @@ window.Quarto = {
   <img src="images/vc_anlage_1.png" width="60%">
   <figcaption>Oben: visual SLAM, Unten: normales SLAM</figcaption>
 </div>
+<p>TBD: inhaltliche/ technische Tiefe erweitern</p>
 </section>
 <section id="visuelle-odometrie" class="level2">
 <h2 class="anchored" data-anchor-id="visuelle-odometrie">1.2 Visuelle Odometrie</h2>
-<p>Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum) basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern des Pre-Zustandes abgeglichen und somit die Bewegung approximiert. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen voraus (Frame to Frame) und nennt sich ‘Feature Matching’. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann über Stereo-Kameras erreicht werden.</p>
+<p>Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum) basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen voraus (Frame to Frame) und nennt sich ‘Feature Matching’. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann über Stereo-Kameras erreicht werden.</p>
+<p>TBD: inhaltliche/ technische Tiefe erweitern</p>
 <div style="text-align: center;">
   <img src="images/vc_anlage_2.gif" width="60%">
   <figcaption>Kamerabewegung mit visueller Odometrie in Echtzeit</figcaption>
@@ -223,6 +225,7 @@ window.Quarto = {
   <img src="images/vc_anlage_3.png" width="60%">
   <figcaption>Mapping Prozess eines Frames in Action</figcaption>
 </div>
+<p>TBD: Prinzip des Mappings + detaillierte Erklärung</p>
 </section>
 <section id="lokale-optimierung" class="level2">
 <h2 class="anchored" data-anchor-id="lokale-optimierung">2.2 Lokale Optimierung</h2>
@@ -234,9 +237,21 @@ window.Quarto = {
 </section>
 <section id="loop-closure" class="level2">
 <h2 class="anchored" data-anchor-id="loop-closure">3.1 Loop Closure</h2>
+<p>TBD: Mathematisches Prinzip + visuelle Veranschaulichung</p>
 </section>
 <section id="globale-optimierung" class="level2">
 <h2 class="anchored" data-anchor-id="globale-optimierung">3.2 Globale Optimierung</h2>
+<p>TBD</p>
+</section>
+<section id="visualisierung-der-vslam-pipeline" class="level2">
+<h2 class="anchored" data-anchor-id="visualisierung-der-vslam-pipeline">Visualisierung der vSLAM Pipeline</h2>
+<p>TBD: Veranschaulichung der oben erklärten Theorie: etwa Visualisierung durch Slideshow in der jeder Slide einem Step des Workflows entspricht. Ideen:</p>
+<ul>
+<li><p>Entstehung der Punktewolke interaktiv einbetten</p></li>
+<li><p>Mapping und Optimierungsschritte bildlich darstellen</p></li>
+<li><p>Mappen deines Gebäudes mittels OS vSLAM Anwendungen</p></li>
+<li><p>Vergleich von günstigen/ ungünstigen Umgebungen für die vSLAM Technologie bezogen auf Texturen, Objekte, Gradienten im Bild</p></li>
+</ul>
 </section>
 <section id="die-essential-matrix" class="level2">
 <h2 class="anchored" data-anchor-id="die-essential-matrix">Die Essential Matrix</h2>
