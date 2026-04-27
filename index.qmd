@@ -131,6 +131,7 @@ einem Step des Workflows entspricht. Ideen:
 - Vergleich von günstigen/ ungünstigen Umgebungen für die vSLAM Technologie bezogen auf Texturen, Objekte, Gradienten im Bild
 
 
+# Test-Area
 
 ## Die Essential Matrix
 Wenn wir zwei Bilder derselben Szene aus verschiedenen Winkeln haben, beschreibt die Essential Matrix $E$ die geometrische Beziehung zwischen ihnen:
