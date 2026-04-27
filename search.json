@@ -25,14 +25,14 @@
     "href": "index.html#lokales-mapping",
     "title": "vSLAM",
     "section": "2.1 Lokales Mapping",
-    "text": "2.1 Lokales Mapping\nDas lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik: Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.\n\n  \n  Mapping Prozess eines Frames in Action\n\nDas System erstellt so eine Trajektorie, die eine zuvor unbekannte Umgebung kartiert und die Position der Kamera enthält."
+    "text": "2.1 Lokales Mapping\nDas lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik: Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.\n\n  \n  Mapping Prozess eines Frames in Action"
   },
   {
     "objectID": "index.html#lokale-optimierung",
     "href": "index.html#lokale-optimierung",
     "title": "vSLAM",
     "section": "2.2 Lokale Optimierung",
-    "text": "2.2 Lokale Optimierung\nNach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung."
+    "text": "2.2 Lokale Optimierung\nNach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.\n\n  \n  Beispiel eines Konvisibilitätsgraphen"
   },
   {
     "objectID": "index.html#loop-closure",

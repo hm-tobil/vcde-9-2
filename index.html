@@ -193,7 +193,12 @@ window.Quarto = {
 </section>
 <section id="zentrale-komponenten-des-vslam-algorithmus" class="level1">
 <h1>Zentrale Komponenten des VSLAM Algorithmus</h1>
-<p>Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden: - Feature Extraction und visuelle Odometrie - Lokales Mapping und Optimierung - Loop Closure und globale Optimierung</p>
+<p>Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden:</p>
+<ul>
+<li><p>Feature Extraction und visuelle Odometrie</p></li>
+<li><p>Lokales Mapping und Optimierung</p></li>
+<li><p>Loop Closure und globale Optimierung</p></li>
+</ul>
 <section id="feature-extraction" class="level2">
 <h2 class="anchored" data-anchor-id="feature-extraction">1.1 Feature Extraction</h2>
 <p>Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.</p>
@@ -218,11 +223,14 @@ window.Quarto = {
   <img src="images/vc_anlage_3.png" width="60%">
   <figcaption>Mapping Prozess eines Frames in Action</figcaption>
 </div>
-<p>Das System erstellt so eine Trajektorie, die eine zuvor unbekannte Umgebung kartiert und die Position der Kamera enthält.</p>
 </section>
 <section id="lokale-optimierung" class="level2">
 <h2 class="anchored" data-anchor-id="lokale-optimierung">2.2 Lokale Optimierung</h2>
 <p>Nach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.</p>
+<div style="text-align: center;">
+  <img src="images/vc_anlage_4.png" width="60%">
+  <figcaption>Beispiel eines Konvisibilitätsgraphen</figcaption>
+</div>
 </section>
 <section id="loop-closure" class="level2">
 <h2 class="anchored" data-anchor-id="loop-closure">3.1 Loop Closure</h2>
