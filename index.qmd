@@ -37,8 +37,11 @@ Anwendungsbereiche im Detail:
 # Zentrale Komponenten des VSLAM Algorithmus
 
 Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden:
+
 - Feature Extraction und visuelle Odometrie
+
 - Lokales Mapping und Optimierung
+
 - Loop Closure und globale Optimierung
 
 ## 1.1 Feature Extraction
@@ -82,7 +85,6 @@ Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korr
   <figcaption>Mapping Prozess eines Frames in Action</figcaption>
 </div>
 ```
-Das System erstellt so eine Trajektorie, die eine zuvor unbekannte Umgebung kartiert und die Position der Kamera enthält.
 
 ## 2.2 Lokale Optimierung
 Nach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch
@@ -92,6 +94,13 @@ Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte ent
 einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer 
 Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph
 ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/vc_anlage_4.png" width="60%">
+  <figcaption>Beispiel eines Konvisibilitätsgraphen</figcaption>
+</div>
+```
 
 ## 3.1 Loop Closure 
 
