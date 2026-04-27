@@ -43,7 +43,7 @@ Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile auf
 
 ## 1.1 Feature Extraction
 Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR).
-Die Objekterkennung erfolgt also basieren auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten 
+Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten 
 extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte 
 Punktewolke, die auf der realen Umgebung liegt.
 
@@ -55,10 +55,43 @@ Punktewolke, die auf der realen Umgebung liegt.
 ```
 
 ## 1.2 Visuelle Odometrie
+Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum)
+basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern
+des Pre-Zustandes abgeglichen und somit die Bewegung approximiert. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen
+voraus (Frame to Frame) und nennt sich 'Feature Matching'. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der 
+Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann
+über Stereo-Kameras erreicht werden.
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/vc_anlage_2.gif" width="60%">
+  <figcaption>Kamerabewegung mit visueller Odometrie in Echtzeit</figcaption>
+</div>
+```
+Exkurs: Alternative Ansätze zur Bewegungsbestimmung einer Kamera mittels VIO (Visual Inertial Odometry)
+TBD
 
 ## 2.1 Lokales Mapping
+Das lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik:
+Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem 
+Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen. 
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/vc_anlage_3.png" width="60%">
+  <figcaption>Mapping Prozess eines Frames in Action</figcaption>
+</div>
+```
+Das System erstellt so eine Trajektorie, die eine zuvor unbekannte Umgebung kartiert und die Position der Kamera enthält.
 
 ## 2.2 Lokale Optimierung
+Nach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch
+mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist 
+nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. 
+Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen 
+einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer 
+Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph
+ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.
 
 ## 3.1 Loop Closure 
 
