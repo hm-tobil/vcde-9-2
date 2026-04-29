@@ -10,9 +10,147 @@ bibliography: references.bib
 ### vSLAM Ergebnis (TUM Dataset)
 
 <video width="100%" controls>
-  <source src="images/video.mp4" type="video/mp4">
+  <source src="images/recording_2020-12-22_12-04-35_5x.mp4" type="video/mp4">
   Dein Browser unterstützt keine Videos.
 </video>
+
+---
+title: "3D Punktwolken Visualisierung"
+format: 
+  html:
+    page-layout: full
+    self-contained: true
+execute:
+  echo: false
+---
+
+## Interaktive Punktwolke
+
+```{python}
+import numpy as np
+import plotly.graph_objects as go
+import glob
+import re
+
+def parse_keyframe(file_path):
+    with open(file_path, 'r') as f:
+        content = f.read()
+
+    # 1. Kamera-Parameter extrahieren (fx, fy, cx, cy)
+    intr_match = re.search(r'# fx, fy, cx, cy, .*\n([\d\.,\- ]+)', content)
+    fx, fy, cx, cy, *_ = map(float, intr_match.group(1).split(','))
+
+    # 2. Kamera-zu-Welt Transformation (Translation und Quaternion)
+    ctw_match = re.search(r'# camToWorld: .*\n([\d\.,\- ]+)', content)
+    ctw_vals = list(map(float, ctw_match.group(1).split(',')))
+    t = np.array(ctw_vals[:3])
+    qx, qy, qz, qw = ctw_vals[3:]
+
+    # Quaternion in Rotationsmatrix umrechnen
+    def q_to_R(q):
+        x, y, z, w = q
+        return np.array([
+            [1-2*y**2-2*z**2, 2*x*y-2*z*w,   2*x*z+2*y*w],
+            [2*x*y+2*z*w,   1-2*x**2-2*z**2, 2*y*z-2*x*w],
+            [2*x*z-2*y*w,   2*y*z+2*x*w,   1-2*x**2-2*y**2]
+        ])
+    
+    R = q_to_R([qx, qy, qz, qw])
+
+    # 3. Punktwolken-Daten parsen
+    # Wir suchen den Block nach 'Point Cloud Data'
+    data_part = content.split('Point Cloud Data :')[1].strip()
+    lines = [l for l in data_part.split('\n') if l and not l.startswith('#')]
+    
+    points_3d = []
+    colors = []
+
+    # Jede ungerade Zeile hat u,v,idepth; jede gerade Zeile hat Farbwerte
+    for i in range(0, len(lines) - 1, 2):
+        try:
+            # Koordinaten
+            coords = list(map(float, lines[i].split(',')))
+            u, v, idepth = coords[0], coords[1], coords[2]
+            
+            # Farbe (wir nehmen den Durchschnitt der 8 Grauwerte)
+            color_vals = list(map(int, lines[i+1].strip(',').split(',')))
+            avg_color = sum(color_vals) / len(color_vals)
+
+            if idepth <= 0: continue
+            
+            # Rückprojektion von Pixel zu 3D (Kamera-Koordinaten)
+            depth = 1.0 / idepth
+            z_c = depth
+            x_c = (u - cx) * depth / fx
+            y_c = (v - cy) * depth / fy
+            
+            # Transformation in Welt-Koordinaten
+            P_w = R @ np.array([x_c, y_c, z_c]) + t
+            
+            points_3d.append(P_w)
+            colors.append(avg_color)
+        except:
+            continue
+
+    return np.array(points_3d), np.array(colors)
+
+# Alle KeyFrame Dateien einlesen
+files = glob.glob("images/recording_2020-12-22_12-04-35/KeyFrameData/KeyFrame_*.txt")
+all_points = []
+all_colors = []
+
+for f in files:
+    pts, cols = parse_keyframe(f)
+    if pts.size > 0:
+        all_points.append(pts)
+        all_colors.append(cols)
+
+# Daten für Plotly zusammenführen
+if all_points:
+    pts_concat = np.vstack(all_points)
+    cols_concat = np.concatenate(all_colors)
+    center = np.median(pts_concat, axis=0)
+    distances = np.linalg.norm(pts_concat - center, axis=1)
+
+    # Wir behalten nur Punkte, die innerhalb einer Standardabweichung liegen
+    # Du kannst den Faktor (hier 2.0) anpassen: 
+    # Kleiner (z.B. 1.0) = strenger, Größer (z.B. 3.0) = mehr Punkte bleiben
+    upper_limit = np.percentile(distances, 95) # Behalte die 95% "zentralsten" Punkte
+    
+    mask = distances < upper_limit
+    pts_concat = pts_concat[mask]
+    cols_concat = cols_concat[mask]
+    # DATEN REDUZIEREN (Sampling)
+    # Nimm nur jeden 10. Punkt, um den Arbeitsspeicher zu schonen
+    skip = 20
+    pts_concat = pts_concat[::skip]
+    cols_concat = cols_concat[::skip]
+    fig = go.Figure(data=[go.Scatter3d(
+        x=pts_concat[:, 0],
+        y=pts_concat[:, 1],
+        z=pts_concat[:, 2],
+        mode='markers',
+        marker=dict(
+            size=1.5,
+            color=cols_concat,
+            colorscale='Gray',
+            opacity=0.8
+        )
+    )])
+
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        scene=dict(
+            xaxis=dict(title='X (m)'),
+            yaxis=dict(title='Y (m)'),
+            zaxis=dict(title='Z (m)'),
+            aspectmode='data'
+        )
+    )
+    fig.show()
+else:
+    print("Keine Daten gefunden.")
+```
 
 # vSLAM – Use Cases und grundlegende Funktionsweise
 vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
