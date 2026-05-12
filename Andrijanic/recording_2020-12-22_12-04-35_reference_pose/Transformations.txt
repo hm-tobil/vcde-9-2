@@ -1,0 +1,18 @@
+# transform_S_AS: translation vector, rotation quaternion
+0.000000,0.000000,0.000000,0.001273,-0.001089,0.001168,0.999998
+
+# TS_cam_imu: translation vector, rotation quaternion
+0.175412,0.003689,-0.058106,-0.007202,0.708623,-0.705546,-0.002350
+
+# transform_w_gpsw: translation vector, rotation quaternion
+0.294607,-0.176226,0.142954,0.000567,0.001983,0.811020,0.585015
+
+# transform_gps_imu: translation vector, rotation quaternion
+0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,1.000000
+
+# transform_e_gpsw: translation vector, rotation quaternion
+4172562.857254,856997.598752,4732016.691051,0.225461,0.276475,0.723986,0.590400
+
+# GNSS scale
+0.965996
+

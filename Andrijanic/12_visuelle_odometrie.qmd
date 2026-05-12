@@ -1,0 +1,1216 @@
+---
+title: "1.2 Visuelle Odometrie"
+subtitle: "ORB-SLAM3 — Kamerabewegung aus Bildsequenzen"
+author: "Nediljko Andrijanic"
+date: today
+lang: de
+format:
+  html:
+    theme: darkly
+    toc: true
+    toc-depth: 2
+    toc-title: "Inhalt"
+    number-sections: false
+    fig-align: center
+    highlight-style: github-dark
+    embed-resources: true
+execute:
+  echo: false
+  eval: true
+  warning: false
+  message: false
+---
+
+```{python}
+#| include: false
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.patches import FancyBboxPatch, Circle, FancyArrow
+import glob
+from scipy.spatial.distance import cdist
+
+plt.style.use('dark_background')
+plt.rcParams['figure.facecolor'] = '#191919'
+plt.rcParams['axes.facecolor'] = '#191919'
+
+# Lade Frames
+frames_path = sorted(glob.glob('../cam0/*.png'))[:100]
+if len(frames_path) >= 2:
+    frame0_bgr = cv2.imread(frames_path[0])
+    frame1_bgr = cv2.imread(frames_path[1])
+    frame0_rgb = cv2.cvtColor(frame0_bgr, cv2.COLOR_BGR2RGB)
+    frame1_rgb = cv2.cvtColor(frame1_bgr, cv2.COLOR_BGR2RGB)
+    frame0_gray = cv2.cvtColor(frame0_bgr, cv2.COLOR_BGR2GRAY)
+    frame1_gray = cv2.cvtColor(frame1_bgr, cv2.COLOR_BGR2GRAY)
+else:
+    print("Nicht genug Frames gefunden")
+
+# ORB-Detektor mit Features
+orb = cv2.ORB_create(nfeatures=500)
+kp0, des0 = orb.detectAndCompute(frame0_gray, None)
+kp1, des1 = orb.detectAndCompute(frame1_gray, None)
+
+# 6 Frames für Schritt 8 Beispiel (Orientierung)
+all_frames_path = sorted(glob.glob('../cam0/*.png'))
+
+# Letzter Frame festgelegt, 6 Frames rückwärts mit 10er-Abstand
+target_name = '1614256761166120704.png'
+last_idx = next(i for i, p in enumerate(all_frames_path) if p.endswith(target_name))
+demo_indices = [max(0, last_idx - (5 - k) * 30) for k in range(6)]
+
+demo_frames_gray = []
+demo_frames_rgb  = []
+for i in demo_indices:
+    if i >= 0 and i < len(all_frames_path):
+        bgr  = cv2.imread(all_frames_path[i])
+        demo_frames_rgb.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+        demo_frames_gray.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY))
+
+# Track reference feature through all 6 demo frames via ORB Descriptor Matching
+_orb = cv2.ORB_create(nfeatures=1000)
+_bf  = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+_kp0_all, _des0_all = _orb.detectAndCompute(demo_frames_gray[0], None)
+_center = [(i, k) for i, k in enumerate(_kp0_all)
+           if 50 < k.pt[0] < 750 and 50 < k.pt[1] < 350]
+if _center:
+    _center.sort(key=lambda x: -x[1].response)
+    _ref_idx = _center[0][0]
+    _ref_kp  = _kp0_all[_ref_idx]
+    _ref_des = _des0_all[_ref_idx:_ref_idx+1]
+
+    tracked_pts = [_ref_kp.pt]
+
+    for _k in range(1, len(demo_frames_gray)):
+        _kp_k, _des_k = _orb.detectAndCompute(demo_frames_gray[_k], None)
+        if _des_k is not None and len(_kp_k) > 0:
+            _matches = _bf.match(_ref_des, _des_k)
+            if _matches:
+                _best = min(_matches, key=lambda m: m.distance)
+                tracked_pts.append(_kp_k[_best.trainIdx].pt)
+            else:
+                tracked_pts.append(tracked_pts[-1])
+        else:
+            tracked_pts.append(tracked_pts[-1])
+else:
+    tracked_pts = [(400, 200)] * len(demo_frames_gray)
+```
+
+## Agenda
+
+Diese Vorlesung behandelt **Schritte 8–12** des ORB-SLAM3-Algorithmus:
+
+- **Schritt 8:** ORB Patch & Orientierung — Aussehen des Features bestimmen
+- **Schritt 9:** Binärer Deskriptor — 256-Bit Fingerabdruck
+- **Schritt 10:** Feature Matching — Features zwischen Frames vergleichen
+- **Schritt 11:** Pose-Schätzung — Kamerabewegung berechnen
+- **Schritt 12:** Trajektorie — Kamera-Pfad über Zeit
+
+**Ziel:** Aus zwei Bildframes → Rotation R und Translation t der Kamera ermitteln.
+
+---
+
+## 1.2 Visuelle Odometrie — Pipeline
+
+```{mermaid}
+graph LR
+    A["Keypoints<br/>(x, y)"]
+    B["8: ORB Patch<br/>+ Orientierung"]
+    C["(x, y, θ)"]
+    D["9: Binärer<br/>Deskriptor"]
+    E["256-Bit<br/>Fingerabdruck"]
+    F["10: Feature<br/>Matching"]
+    G["Gematchte<br/>Paare"]
+    H["11: Essential<br/>Matrix"]
+    I["R, t<br/>(Pose)"]
+    J["12: Trajektorie<br/>Akkumulation"]
+    K["Kamera-Pfad"]
+
+    A -->|Frame t| B --> C --> D --> E
+    E -->|Frame t + Frame t+1| F --> G --> H --> I --> J --> K
+    A -->|Frame t+1| B --> C --> D --> E
+
+    style B fill:#3a5f3a
+    style D fill:#3a5f3a
+    style F fill:#3a5f3a
+    style H fill:#3a5f3a
+    style J fill:#3a5f3a
+```
+
+---
+
+## Wo stehen wir?
+
+Nach **Schritt 7** (Harris Score) haben wir für **jeden Frame**:
+- N Keypoints mit ihren **Positionen (x, y)**
+- Diese sind gleichmäßig verteilt (Quadtree) und qualitätsgeprüft (Harris)
+
+**Problem:** Wir kennen WO die Ecken sind, aber nicht WIE sie aussehen.
+
+**Frage:** Wenn Frame 1 dieselbe Ecke wie Frame 0 hat, wie erkennen wir das?
+- Kann nicht einfach Nachbarschaft vergleichen — die Ecke sieht in Frame 1 anders aus (andere Position, Winkel, Helligkeit)
+
+**Lösung:** Wir extrahieren einen **Fingerabdruck** (Deskriptor) pro Feature — ein kompaktes Merkmal das **robust gegen Transformationen** ist.
+
+---
+
+## Schritt 8: ORB Patch & Orientierung — Theorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** Keypoint-Position (x,y) pro Frame &nbsp;→&nbsp; **Ausgang → Schritt 9:** Patch + Orientierungswinkel θ
+:::
+
+**Problem:** Eine Ecke sieht unterschiedlich aus, je nachdem aus welchem Winkel wir sie sehen.
+
+```
+Beispiel:
+┌─┐           Gedreht 45°:    Gedreht 90°:
+│▓│           ╱▓╲             ──▓──
+└─┘           ▓ ▓             │▓▓▓│
+              ╲▓╱             └─┘
+
+Selbe Ecke, aber visuell verschiedene Nachbarschaften
+→ Wenn wir direkt vergleichen, merken wir nicht dass es dieselbe ist!
+```
+
+**Lösung — zwei Schritte:**
+
+1. **Patch extrahieren:** Schneide ein 31×31 Fenster um die Keypoint-Position
+2. **Orientierung berechnen:** Berechne den dominanten Winkel θ mittels Intensity Centroid Method
+
+**Orientierung (Intensity Centroid):**
+
+$$\theta = \text{atan2}(m_{01}, m_{10})$$
+
+wobei $m_{pq} = \sum_{x,y \in \text{Patch}} x^p y^q \cdot I(x,y)$ die räumlichen Momente sind.
+
+**Interpretation:** θ ist die Richtung vom Patchzentrum zum "hellsten Bereich". Wenn wir beide Patches auf dieselbe Orientierung drehen (Rotation um θ), sehen sie gleich aus.
+
+**Warum wichtig:**
+- Ohne Orientierung: Deskriptor von Frame 0 (Winkel 0°) ≠ Deskriptor von Frame 1 (Winkel 45°)
+- Mit Orientierung: Wir drehen beide auf θ=0° → gleicher Deskriptor → Erkennung funktioniert
+
+---
+
+## Schritt 8: ORB Patch & Orientierung — Beispiel 1: Echtes Bild
+
+```{python}
+#| fig-align: center
+if len(kp0) > 0:
+    # Nimm das beste Feature
+    kp_best = max(kp0, key=lambda x: x.response)
+    x, y = int(kp_best.pt[0]), int(kp_best.pt[1])
+    angle = kp_best.angle
+
+    # Extrahiere einen 31×31 Patch
+    patch_size = 31
+    y1 = max(0, y - patch_size//2)
+    y2 = min(frame0_gray.shape[0], y + patch_size//2 + 1)
+    x1 = max(0, x - patch_size//2)
+    x2 = min(frame0_gray.shape[1], x + patch_size//2 + 1)
+
+    patch = frame0_rgb[y1:y2, x1:x2].copy()
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+
+    # Links: Patch im Kontext
+    axes[0].imshow(frame0_rgb[max(0,y-80):min(frame0_rgb.shape[0],y+80),
+                              max(0,x-80):min(frame0_rgb.shape[1],x+80)])
+    axes[0].set_title('Keypoint im Frame (echtes Bild)\n(rotes Quadrat = 31×31 Patch)', fontsize=11, color='white')
+    rect = mpatches.Rectangle((80-patch_size//2, 80-patch_size//2), patch_size, patch_size,
+                               linewidth=2, edgecolor='red', facecolor='none')
+    axes[0].add_patch(rect)
+    axes[0].plot(80, 80, 'g+', markersize=15, markeredgewidth=2)
+    axes[0].axis('off')
+
+    # Rechts: Patch mit Orientierungspfeil
+    axes[1].imshow(patch if patch.shape[0] > 0 and patch.shape[1] > 0
+                   else frame0_rgb[y1:y2, x1:x2])
+    axes[1].set_title(f'Ausgeschnittener 31×31 Patch\nOrientierung θ = {angle:.1f}°', fontsize=11, color='white')
+
+    cy, cx = patch.shape[0]//2, patch.shape[1]//2
+    arrow_len = 12
+    angle_rad = np.radians(angle)
+    dy = arrow_len * np.sin(angle_rad)
+    dx = arrow_len * np.cos(angle_rad)
+    axes[1].arrow(cx, cy, dx, dy, head_width=3, head_length=2, fc='lime', ec='lime', lw=2.5)
+    axes[1].plot(cx, cy, 'r+', markersize=12, markeredgewidth=2)
+    axes[1].text(cx+2, cy-8, f'{angle:.0f}°', color='lime', fontsize=10, fontweight='bold')
+    axes[1].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+```
+
+---
+
+## Schritt 8: ORB Patch & Orientierung — Beispiel 2: Dieselbe Ecke in 2 Frames mit VERSCHIEDENEN Orientierungen
+
+```{python}
+#| fig-align: center
+# Erstelle zwei realistische Patches: eine L-förmige Ecke
+# Frame 0: Ecke normal
+# Frame 1: Ecke gedreht (die Kamera hat sich bewegt/gedreht)
+
+patch_frame0 = np.array([
+    [50,  50,  50,  50,  50],
+    [50,  50,  50,  50,  50],
+    [50,  50, 200, 200, 200],
+    [50,  50, 200, 200, 200],
+    [50,  50, 200, 200, 200]
+], dtype=np.uint8)
+
+patch_frame1 = np.array([
+    [50,  50,  50, 200, 200],
+    [50,  50,  50, 200, 200],
+    [50,  50,  50, 200, 200],
+    [50,  50,  50,  50,  50],
+    [50,  50,  50,  50,  50]
+], dtype=np.uint8)
+
+fig, axes = plt.subplots(2, 2, figsize=(10, 9))
+
+# Frame 0: Original (L-Ecke horizontal)
+axes[0, 0].imshow(patch_frame0, cmap='gray', vmin=0, vmax=255)
+axes[0, 0].set_title('Frame 0:\nEcke (L-Form horizontal)\nθ = 0°', fontsize=11, color='white', fontweight='bold')
+cy, cx = patch_frame0.shape[0]//2, patch_frame0.shape[1]//2
+axes[0, 0].plot(cx, cy, 'r+', markersize=14, markeredgewidth=2)
+axes[0, 0].arrow(cx, cy, 1.5, 0, head_width=0.4, head_length=0.2, fc='lime', ec='lime', lw=2.5)
+axes[0, 0].axis('off')
+
+# Frame 1: Gedreht (L-Ecke vertikal — Kamera rotiert 90°)
+axes[0, 1].imshow(patch_frame1, cmap='gray', vmin=0, vmax=255)
+axes[0, 1].set_title('Frame 1:\nDieselbe Ecke (Kamera rotiert 90°)\nθ = 90°', fontsize=11, color='white', fontweight='bold')
+axes[0, 1].plot(cx, cy, 'r+', markersize=14, markeredgewidth=2)
+axes[0, 1].arrow(cx, cy, 0, -1.5, head_width=0.4, head_length=0.2, fc='orange', ec='orange', lw=2.5)
+axes[0, 1].axis('off')
+
+# Vergleich OHNE Orientierungs-Korrektur
+axes[1, 0].text(0.5, 0.7, '❌ OHNE Orientierungs-Korrektur:', fontsize=12, color='red',
+               fontweight='bold', ha='center', transform=axes[1, 0].transAxes)
+axes[1, 0].text(0.5, 0.5, 'Frame 0 Patch ≠ Frame 1 Patch\n\n(unterschiedliche Formen)\n\n→ Algorithmus denkt:\n"Verschiedene Ecken!"',
+               fontsize=11, color='#ffcccc', ha='center', va='center', transform=axes[1, 0].transAxes,
+               bbox=dict(boxstyle='round', facecolor='#3a0000', alpha=0.8, pad=1))
+axes[1, 0].axis('off')
+
+# Vergleich MIT Orientierungs-Korrektur
+axes[1, 1].text(0.5, 0.7, '✅ MIT Orientierungs-Korrektur:', fontsize=12, color='lime',
+               fontweight='bold', ha='center', transform=axes[1, 1].transAxes)
+axes[1, 1].text(0.5, 0.5, 'Frame 0 Patch (gedreht um -0°) = \nFrame 1 Patch (gedreht um -90°)\n\n(jetzt identisch!)\n\n→ Algorithmus denkt:\n"Dieselbe Ecke!"',
+               fontsize=11, color='#ccffcc', ha='center', va='center', transform=axes[1, 1].transAxes,
+               bbox=dict(boxstyle='round', facecolor='#003a00', alpha=0.8, pad=1))
+axes[1, 1].axis('off')
+
+fig.suptitle('Problem: Dieselbe Ecke sieht in 2 Frames unterschiedlich aus (wegen Rotation)\nLösung: Normalisiere beide auf θ = 0° → dann sind sie identisch',
+            fontsize=12, color='#ffff88', fontweight='bold', y=0.98)
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## Schritt 8: ORB Patch & Orientierung — Beispiel 3: Intensity Centroid erklärt
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
+
+# Patch mit hellen Regionen
+patch_ex = np.array([
+    [30,  30,  40,  50,  60],
+    [30,  40, 100, 180, 200],
+    [40, 100, 120, 180, 200],
+    [50, 180, 180, 100,  40],
+    [60, 200, 200,  40,  30]
+], dtype=np.uint8)
+
+cy, cx = 2, 2
+
+# Links: Patch mit Zentrum
+axes[0].imshow(patch_ex, cmap='gray', vmin=0, vmax=255)
+axes[0].plot(cx, cy, 'r+', markersize=14, markeredgewidth=2)
+axes[0].set_title('Patch mit Zentrum\n(rotes Kreuz)', fontsize=11, color='white')
+axes[0].axis('off')
+
+# Mitte: Helle Pixel markiert (hellere Pixel = stärkerer Einfluss)
+axes[1].imshow(patch_ex, cmap='gray', vmin=0, vmax=255)
+# Markiere helle Pixel (>100)
+for i in range(patch_ex.shape[0]):
+    for j in range(patch_ex.shape[1]):
+        if patch_ex[i, j] > 100:
+            axes[1].plot(j, i, 'o', color='yellow', markersize=8)
+axes[1].plot(cx, cy, 'r+', markersize=14, markeredgewidth=2)
+axes[1].set_title('Helle Pixel (>100)\n= großen Einfluss auf Centroid', fontsize=11, color='yellow')
+axes[1].axis('off')
+
+# Rechts: Intensity Centroid berechnen
+# Berechne den gewichteten Durchschnitt
+total_intensity = patch_ex.sum()
+cy_centroid = (np.arange(patch_ex.shape[0])[:, np.newaxis] * patch_ex).sum() / total_intensity
+cx_centroid = (np.arange(patch_ex.shape[1])[np.newaxis, :] * patch_ex).sum() / total_intensity
+
+axes[2].imshow(patch_ex, cmap='gray', vmin=0, vmax=255)
+axes[2].plot(cx, cy, 'r+', markersize=14, markeredgewidth=2, label='Zentrum')
+axes[2].plot(cx_centroid, cy_centroid, 'o', color='cyan', markersize=10, markeredgewidth=2, label='Intensity Centroid')
+axes[2].arrow(cx, cy, cx_centroid-cx, cy_centroid-cy, head_width=0.3, head_length=0.2,
+             fc='lime', ec='lime', lw=2.5)
+axes[2].set_title(f'Intensity Centroid:\ngewichteter Durchschnitt\naller hellen Pixel\n\nOrientierung θ = \natan2(Δy, Δx)',
+                 fontsize=10, color='cyan')
+axes[2].legend(loc='lower left', fontsize=9)
+axes[2].axis('off')
+
+fig.suptitle('Intensity Centroid = gewichteter Durchschnitt aller Pixel (helle Pixel zählen mehr)',
+            fontsize=12, color='#ffff88', fontweight='bold')
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## Schritt 8: ORB Patch & Orientierung — Warum ist das wichtig?
+
+**Ohne Orientierungs-Normalisierung:**
+
+```
+Frame 0: Feature θ = 0°  → Patch-Pixel-Nachbarschaft A
+Frame 1: Feature θ = 45° → Patch-Pixel-Nachbarschaft B
+
+A ≠ B (weil nur gedreht, nicht derselbe!)
+→ Algorithmus denkt: "Verschiedene Ecken!"
+→ FALSCH — es ist dieselbe Ecke!
+```
+
+**Mit Orientierungs-Normalisierung:**
+
+```
+Frame 0: Feature θ = 0°  → Patch gedreht auf θ = 0° → Nachbarschaft A
+Frame 1: Feature θ = 45° → Patch gedreht auf θ = 0° (Drehung um -45°) → Nachbarschaft A
+
+A = A
+→ Algorithmus denkt: "Dieselbe Ecke!"
+→ RICHTIG!
+```
+
+**Das ist die Kraft von Schritt 8:**
+- Erkennt nicht nur WO eine Ecke ist (x, y)
+- Sondern auch IN WELCHER ORIENTIERUNG sie ist (θ)
+- Und normalisiert alle Patches auf dieselbe Orientierung
+- → Robustes Feature-Matching über Frames hinweg
+
+---
+
+**Ergebnis:** Jeder Keypoint hat jetzt **(x, y, θ)** — Position UND Orientierung.
+
+---
+
+## Schritt 8: ORB Patch & Orientierung — Beispiel 4: 6 echte Frames
+
+```{python}
+#| fig-align: center
+# Verwende den via Feature Matching getracken Feature
+if tracked_pts:
+    patch_size = 40
+    fig, axes = plt.subplots(3, 6, figsize=(20, 9),
+                              gridspec_kw={'height_ratios': [2.5, 1.5, 1.5]})
+
+    # ── Obere Reihe: Ganzes Bild mit Feature-Box + Orientierungspfeil ──
+    angles_list = []
+    for frame_idx in range(6):
+        gray = demo_frames_gray[frame_idx]
+        x_tr = int(tracked_pts[frame_idx][0])
+        y_tr = int(tracked_pts[frame_idx][1])
+
+        # Patch-Bereich berechnen
+        y1p = max(0, y_tr - patch_size)
+        y2p = min(gray.shape[0], y_tr + patch_size + 1)
+        x1p = max(0, x_tr - patch_size)
+        x2p = min(gray.shape[1], x_tr + patch_size + 1)
+        p = gray[y1p:y2p, x1p:x2p].astype(float)
+
+        # Orientierung via Intensity Centroid
+        h_p, w_p = p.shape
+        yc, xc = np.meshgrid(np.arange(h_p), np.arange(w_p), indexing='ij')
+        angle = np.degrees(np.arctan2(np.sum(yc * p), np.sum(xc * p)))
+        angles_list.append(angle)
+
+        # Ganzes Bild anzeigen
+        axes[0, frame_idx].imshow(gray, cmap='gray')
+
+        # Grünes Rechteck um den Patch
+        rect = mpatches.Rectangle((x1p, y1p), x2p - x1p, y2p - y1p,
+                                    linewidth=2, edgecolor='lime', facecolor='none')
+        axes[0, frame_idx].add_patch(rect)
+
+        # Roter Orientierungspfeil vom Feature-Zentrum
+        angle_rad = np.radians(angle)
+        axes[0, frame_idx].annotate(
+            '', xy=(x_tr + 25*np.cos(angle_rad), y_tr + 25*np.sin(angle_rad)),
+            xytext=(x_tr, y_tr),
+            arrowprops=dict(arrowstyle='->', color='red', lw=2.5))
+        axes[0, frame_idx].plot(x_tr, y_tr, 'r+', markersize=10, markeredgewidth=2)
+        axes[0, frame_idx].set_title(
+            f'Frame {demo_indices[frame_idx]}\nθ = {angle:.1f}°',
+            fontsize=9, color='white', fontweight='bold')
+        axes[0, frame_idx].axis('off')
+
+    # ── Mittlere Reihe: Roher Ausschnitt (ohne Rotation) ──
+    for frame_idx in range(6):
+        gray = demo_frames_gray[frame_idx]
+        x_tr = int(tracked_pts[frame_idx][0])
+        y_tr = int(tracked_pts[frame_idx][1])
+        angle = angles_list[frame_idx]
+
+        y1p = max(0, y_tr - patch_size)
+        y2p = min(gray.shape[0], y_tr + patch_size + 1)
+        x1p = max(0, x_tr - patch_size)
+        x2p = min(gray.shape[1], x_tr + patch_size + 1)
+        patch_raw = gray[y1p:y2p, x1p:x2p].copy()
+
+        # Orientierungspfeil im Ausschnitt
+        angle_rad = np.radians(angle)
+        cy, cx = patch_raw.shape[0]//2, patch_raw.shape[1]//2
+        dx_arr = 12 * np.cos(angle_rad)
+        dy_arr = 12 * np.sin(angle_rad)
+
+        axes[1, frame_idx].imshow(patch_raw, cmap='gray')
+        axes[1, frame_idx].arrow(cx, cy, dx_arr, dy_arr,
+                                  head_width=2.5, head_length=2, fc='red', ec='red', lw=2)
+        axes[1, frame_idx].plot(cx, cy, 'r+', markersize=8, markeredgewidth=2)
+        axes[1, frame_idx].set_title(
+            f'Ausschnitt\nθ = {angle:.1f}°',
+            fontsize=9, color='white', fontweight='bold')
+        axes[1, frame_idx].axis('off')
+
+    # ── Untere Reihe: Normalisierter Patch (θ=0°) ──
+    for frame_idx in range(6):
+        gray = demo_frames_gray[frame_idx]
+        x_tr = int(tracked_pts[frame_idx][0])
+        y_tr = int(tracked_pts[frame_idx][1])
+        angle = angles_list[frame_idx]
+
+        y1p = max(0, y_tr - patch_size)
+        y2p = min(gray.shape[0], y_tr + patch_size + 1)
+        x1p = max(0, x_tr - patch_size)
+        x2p = min(gray.shape[1], x_tr + patch_size + 1)
+        patch_display = gray[y1p:y2p, x1p:x2p].copy()
+
+        # Drehe Patch auf θ=0°
+        if patch_display.size > 0:
+            M = cv2.getRotationMatrix2D(
+                (patch_display.shape[1]//2, patch_display.shape[0]//2), -angle, 1.0)
+            patch_rotated = cv2.warpAffine(
+                patch_display, M, (patch_display.shape[1], patch_display.shape[0]))
+        else:
+            patch_rotated = patch_display
+
+        axes[2, frame_idx].imshow(patch_rotated, cmap='gray')
+        axes[2, frame_idx].set_title(
+            'Nach Normalisierung\nθ = 0°',
+            fontsize=9, color='lime', fontweight='bold')
+        cy, cx = patch_rotated.shape[0]//2, patch_rotated.shape[1]//2
+        axes[2, frame_idx].plot(cy, cx, 'r+', markersize=10, markeredgewidth=2)
+        axes[2, frame_idx].arrow(cx, cy, 12, 0, head_width=3, head_length=2,
+                                  fc='lime', ec='lime', lw=2)
+        axes[2, frame_idx].axis('off')
+
+    fig.suptitle(
+        'OBEN: Volles Bild (grüne Box)  |  MITTE: Ausschnitt mit θ  |  UNTEN: Normalisiert θ=0°',
+        fontsize=11, color='#ffff88', fontweight='bold', y=0.995)
+    plt.tight_layout()
+    plt.show()
+```
+
+**Beobachtung:** Obwohl die Ecke in jedem Frame eine andere Orientierung θ hat, sehen alle Patches nach der Normalisierung auf θ=0° **optisch identisch** aus. Das ist die Kraft von Schritt 8!
+
+---
+
+## Schritt 9: Binärer Deskriptor — Theorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** Patch + Orientierung θ &nbsp;→&nbsp; **Ausgang → Schritt 10:** 256-Bit Fingerabdruck
+:::
+
+**Ziel:** Komprime den Patch zu einer 256-Bit Binärzahl die:
+- Schnell zu berechnen ist (für Echtzeit)
+- Schnell zu vergleichen ist (Hamming-Distanz statt Pixelweise Differenz)
+- Robust gegen kleine Transformationen (Rauschen, Helligkeit)
+
+**Algorithmus (BRIEF-Test nach Rotation):**
+
+1. Definiere **256 Pixelpaare** (A, B) im Patch mit festen Positionen
+   - **Entscheidend:** Diese 256 Paare sind **für ALLE Bilder identisch** (einmal vom ORB-Designer optimiert und dann unveränderlich)
+   - Nur deshalb ist der Hamming-Vergleich zweier Deskriptoren möglich und sinnvoll!
+2. **Für jedes Paar:** Berechne $\text{Bit}_i = (I_A < I_B) ? 1 : 0$
+3. **Ergebnis:** Vektor von 256 Bits = eindeutiger Fingerabdruck
+
+**Beispiel mit 4 Paaren (vereinfacht):**
+
+| Paar | Position A | Position B | $I_A$ | $I_B$ | $I_A < I_B$ | Bit |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1 | (5,5) | (10,5) | 180 | 200 | ✓ | **1** |
+| 2 | (15,15) | (8,8) | 120 | 140 | ✓ | **1** |
+| 3 | (3,10) | (12,3) | 160 | 150 | ✗ | **0** |
+| 4 | (20,10) | (15,15) | 100 | 120 | ✓ | **1** |
+
+→ **4-Bit Deskriptor:** `1101`
+
+**Warum nicht einfach alle 961 Pixelwerte (31×31)?**
+- **Größe:** 256 Bits = 32 Bytes; 961 Pixels × 8 Bits = 7.7 KB (24× größer)
+- **Vergleich:** Hamming-Distanz (XOR + popcount) = ~1 CPU-Zyklus vs. Euclidean = teuer
+- **Robustheit:** Binäre Tests sind weniger empfindlich gegen Rauschen
+
+---
+
+## Schritt 9: Binärer Deskriptor — Beispiel 1: Schritt für Schritt
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+# ── 10×10 Synthetischer Patch ──
+np.random.seed(7)
+patch_s = np.full((10, 10), 120, dtype=np.uint8)
+patch_s[0:4, 0:4] = np.random.randint(200, 255, (4, 4))
+patch_s[6:10, 6:10] = np.random.randint(10, 60, (4, 4))
+patch_s[0:4, 6:10] = np.random.randint(80, 140, (4, 4))
+patch_s[6:10, 0:4] = np.random.randint(90, 150, (4, 4))
+
+# 6 Pixelpaare (klare Positionen)
+pairs_s = [
+    ((1, 1), (8, 8)),
+    ((2, 2), (7, 7)),
+    ((1, 7), (7, 2)),
+    ((0, 0), (9, 9)),
+    ((3, 5), (5, 3)),
+    ((1, 3), (8, 6)),
+]
+
+colors_s = ['#ff4444', '#44aaff', '#ffaa00', '#44ff88', '#ff88ff', '#88ffff']
+
+# Links: Patch mit Paaren
+zoom = 40
+patch_big = np.kron(patch_s, np.ones((zoom, zoom), dtype=np.uint8))
+axes[0].imshow(patch_big, cmap='gray', vmin=0, vmax=255)
+for i, ((ra, ca), (rb, cb)) in enumerate(pairs_s):
+    ax_ca = ca * zoom + zoom//2
+    ay_ra = ra * zoom + zoom//2
+    ax_cb = cb * zoom + zoom//2
+    ay_rb = rb * zoom + zoom//2
+    axes[0].annotate('', xy=(ax_cb, ay_rb), xytext=(ax_ca, ay_ra),
+                     arrowprops=dict(arrowstyle='->', color=colors_s[i], lw=2.5))
+    axes[0].plot(ax_ca, ay_ra, 'o', color=colors_s[i], markersize=8)
+    axes[0].plot(ax_cb, ay_rb, 's', color=colors_s[i], markersize=8)
+    axes[0].text(ax_ca-15, ay_ra-5, f'A{i+1}', color=colors_s[i], fontsize=9, fontweight='bold')
+    axes[0].text(ax_cb+3, ay_rb-5, f'B{i+1}', color=colors_s[i], fontsize=9, fontweight='bold')
+axes[0].set_title('10×10 Patch\n(Kreis=A, Quadrat=B)', fontsize=11, color='white')
+axes[0].axis('off')
+
+# Mitte: Tabelle
+bits_s = []
+table_rows = [['Paar', 'I_A', 'I_B', 'I_A < I_B', 'Bit']]
+for i, ((ra, ca), (rb, cb)) in enumerate(pairs_s):
+    ia = int(patch_s[ra, ca])
+    ib = int(patch_s[rb, cb])
+    bit = int(ia < ib)
+    bits_s.append(bit)
+    table_rows.append([f'{i+1}', str(ia), str(ib), '✓' if bit else '✗', str(bit)])
+
+axes[1].axis('off')
+tbl = axes[1].table(cellText=table_rows, cellLoc='center', loc='center',
+                    colWidths=[0.12, 0.15, 0.15, 0.22, 0.12])
+tbl.auto_set_font_size(False)
+tbl.set_fontsize(11)
+tbl.scale(1, 2.2)
+for j in range(5):
+    tbl[(0, j)].set_facecolor('#2a5a2a')
+    tbl[(0, j)].set_text_props(weight='bold', color='white')
+for i in range(1, len(table_rows)):
+    col = '#1a3a1a' if bits_s[i-1] == 1 else '#3a1a1a'
+    for j in range(5):
+        tbl[(i, j)].set_facecolor(col)
+        tbl[(i, j)].set_text_props(color='white')
+axes[1].set_title('BRIEF-Test: 6 Pixelpaare', fontsize=11, color='white', pad=20)
+
+# Rechts: Deskriptor als Bit-Sequenz
+bit_str = ''.join(str(b) for b in bits_s)
+axes[2].axis('off')
+axes[2].set_xlim(0, 1)
+axes[2].set_ylim(0, 1)
+axes[2].text(0.5, 0.85, '6-Bit Deskriptor:', fontsize=12, color='white',
+             ha='center', fontweight='bold')
+axes[2].text(0.5, 0.65, f'[ {" ".join(str(b) for b in bits_s)} ]',
+             fontsize=18, color='#ffff00', ha='center', fontweight='bold',
+             fontfamily='monospace')
+axes[2].text(0.5, 0.45, f'= "{bit_str}" (binär)', fontsize=14, color='#aaffaa',
+             ha='center', fontfamily='monospace')
+axes[2].text(0.5, 0.25, '(Real: 256 Bits)', fontsize=10, color='#888888', ha='center')
+axes[2].set_title('Ergebnis', fontsize=11, color='white', pad=20)
+
+fig.suptitle('Schritt 9: BRIEF-Test — Schritt für Schritt',
+             fontsize=13, color='#ffff88', fontweight='bold')
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## Schritt 9: Binärer Deskriptor — Beispiel 2: Dieselbe Ecke aus 6 Frames
+
+```{python}
+#| fig-align: center
+if tracked_pts and len(demo_frames_gray) >= 6:
+    # Berechne ORB-Deskriptor für jede normalisierte Patch aus Schritt 8
+    _orb9 = cv2.ORB_create(nfeatures=500)
+    patch_size_s8 = 40
+    descriptors_6 = []
+    patches_norm_6 = []
+
+    for frame_idx in range(len(demo_frames_gray)):
+        gray = demo_frames_gray[frame_idx]
+        x_tr = int(tracked_pts[frame_idx][0])
+        y_tr = int(tracked_pts[frame_idx][1])
+
+        y1p = max(0, y_tr - patch_size_s8)
+        y2p = min(gray.shape[0], y_tr + patch_size_s8 + 1)
+        x1p = max(0, x_tr - patch_size_s8)
+        x2p = min(gray.shape[1], x_tr + patch_size_s8 + 1)
+        patch_raw = gray[y1p:y2p, x1p:x2p].copy()
+
+        # Normalisiere auf θ=0° (gleich wie Schritt 8)
+        h_p, w_p = patch_raw.shape
+        yc_, xc_ = np.meshgrid(np.arange(h_p), np.arange(w_p), indexing='ij')
+        angle = np.degrees(np.arctan2(np.sum(yc_ * patch_raw.astype(float)),
+                                      np.sum(xc_ * patch_raw.astype(float))))
+        M = cv2.getRotationMatrix2D((w_p//2, h_p//2), -angle, 1.0)
+        patch_norm = cv2.warpAffine(patch_raw, M, (w_p, h_p))
+        patches_norm_6.append(patch_norm)
+
+        kp_center = cv2.KeyPoint(float(w_p//2), float(h_p//2), float(min(w_p, h_p)), angle=0.0)
+        _, des = _orb9.compute(patch_norm, [kp_center])
+        descriptors_6.append(des[0] if des is not None else np.zeros(32, dtype=np.uint8))
+
+    # Layout: 6 Patches oben, 6 Deskriptor-Grids unten, rechts Hamming-Distanzen
+    fig = plt.figure(figsize=(20, 9))
+    gs = fig.add_gridspec(2, 7, height_ratios=[1.2, 1], width_ratios=[1,1,1,1,1,1,1.2])
+
+    for frame_idx in range(6):
+        ax_top = fig.add_subplot(gs[0, frame_idx])
+        ax_top.imshow(patches_norm_6[frame_idx], cmap='gray')
+        ax_top.set_title(f'Frame {demo_indices[frame_idx]}\n(θ=0°)', fontsize=9, color='lime')
+        ax_top.axis('off')
+
+        ax_bot = fig.add_subplot(gs[1, frame_idx])
+        des_grid = np.unpackbits(descriptors_6[frame_idx]).reshape(16, 16)
+        ax_bot.imshow(des_grid, cmap='RdYlGn', vmin=0, vmax=1, interpolation='nearest')
+        ax_bot.set_title('256-Bit\nDeskriptor', fontsize=9, color='white')
+        ax_bot.axis('off')
+
+    # Rechts: Hamming-Distanzen
+    ax_ham = fig.add_subplot(gs[:, 6])
+    ref_des = descriptors_6[0]
+    distances = [int(np.sum(np.unpackbits(ref_des ^ d))) for d in descriptors_6]
+    bars = ax_ham.barh(range(6), distances, color=['#44ff44']+['#ffaa44']*5)
+    ax_ham.set_yticks(range(6))
+    ax_ham.set_yticklabels([f'Frame {i}' for i in demo_indices], color='white', fontsize=9)
+    ax_ham.set_xlabel('Hamming-Distanz', color='white', fontsize=10)
+    ax_ham.set_title('Distanz zu\nFrame 0', color='white', fontsize=10)
+    ax_ham.set_facecolor('#191919')
+    ax_ham.tick_params(colors='white')
+    for spine in ['bottom', 'left']:
+        ax_ham.spines[spine].set_color('white')
+    for spine in ['top', 'right']:
+        ax_ham.spines[spine].set_visible(False)
+    for i, (bar, d) in enumerate(zip(bars, distances)):
+        ax_ham.text(d+1, i, str(d), va='center', color='white', fontsize=10, fontweight='bold')
+
+    fig.suptitle('OBEN: Normalisierte Patches (Schritt 8)  →  UNTEN: 256-Bit Deskriptor (Schritt 9)',
+                 fontsize=12, color='#ffff88', fontweight='bold')
+    plt.tight_layout()
+    plt.show()
+```
+
+**Beobachtung:** Dieselbe physische Ecke → kleine Hamming-Distanzen → Deskriptoren sehr ähnlich. Das ist die Kraft von Schritt 8 + 9 zusammen!
+
+---
+
+## Schritt 10: Feature Matching — Theorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** Deskriptoren Frame t + Deskriptoren Frame t+1 &nbsp;→&nbsp; **Ausgang → Schritt 11:** gematchte Paare
+:::
+
+**Problem:** Wir haben 500 Features in Frame 0 und 500 in Frame 1. Welche gehören zusammen?
+
+**Lösung:** Vergleiche Deskriptoren mit **Hamming-Distanz**.
+
+**Hamming-Distanz:**
+
+Zwei 256-Bit Deskriptoren $D_1$ und $D_2$:
+$$d_H(D_1, D_2) = \text{popcount}(D_1 \oplus D_2)$$
+
+$\oplus$ = bitweises XOR
+popcount = Anzahl der 1-Bits
+
+**Interpretation:**
+- $d_H = 0$ → identisch → **sehr ähnlich**
+- $d_H = 10$ → **ähnlich**
+- $d_H = 128$ → **unähnlich**
+
+**Lowe's Ratio Test:**
+
+$$\frac{d_{\text{best}}}{d_{\text{2nd-best}}} < 0.75$$
+
+Verwerfe Matches die nicht klar sind.
+
+---
+
+## Schritt 10: Feature Matching — Beispiel
+
+```{python}
+#| fig-align: center
+if len(kp0) > 0 and len(kp1) > 0 and des0 is not None and des1 is not None:
+    # BFMatcher mit Hamming-Distanz
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+    matches = bf.knnMatch(des0, des1, k=2)
+
+    # Lowe's ratio test
+    good_matches = []
+    for match_pair in matches:
+        if len(match_pair) == 2:
+            m, n = match_pair
+            if m.distance < 0.75 * n.distance:
+                good_matches.append(m)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Links: gute Matches
+    match_img = cv2.drawMatches(frame0_rgb, kp0, frame1_rgb, kp1, good_matches[:20],
+                                 None, matchColor=(80,255,80), singlePointColor=(255,255,255),
+                                 flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    axes[0].imshow(match_img)
+    axes[0].set_title(f'Gute Matches (grün)\n{len(good_matches)} Matches', fontsize=11)
+    axes[0].axis('off')
+
+    # Rechts: alle Matches
+    if len(matches) > 0:
+        all_matches = [m[0] for m in matches if len(m) > 0]
+        match_img2 = cv2.drawMatches(frame0_rgb, kp0, frame1_rgb, kp1, all_matches[:20],
+                                      None, matchColor=(200,80,80), singlePointColor=(255,255,255),
+                                      flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        axes[1].imshow(match_img2)
+        axes[1].set_title(f'Alle Kandidaten (viele rot=falsch)\n{len(all_matches)} Kandidaten', fontsize=11)
+        axes[1].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+```
+
+---
+
+## Schritt 10: Feature Matching — Beispiel 2: Dieselbe Ecke aus 6 Frames
+
+```{python}
+#| fig-align: center
+if tracked_pts and len(descriptors_6) == 6:
+    # Berechne Hamming-Distanzen: Referenz = Frame 0
+    ref_des = descriptors_6[0]
+    distances = [int(np.sum(np.unpackbits(ref_des ^ d))) for d in descriptors_6]
+
+    # Teil 1: 6 Frames mit Ecke markiert + Distanz im Titel
+    fig, axes = plt.subplots(1, 6, figsize=(18, 3.5))
+    for i in range(6):
+        axes[i].imshow(demo_frames_gray[i], cmap='gray')
+
+        # Grüner Kreis um die Ecke
+        x_tr = int(tracked_pts[i][0])
+        y_tr = int(tracked_pts[i][1])
+        circle = plt.Circle((x_tr, y_tr), 20, color='lime', fill=False, linewidth=2)
+        axes[i].add_patch(circle)
+
+        # Titel mit Distanz
+        if i == 0:
+            title_text = f'Frame {demo_indices[i]}\n(Referenz)'
+            title_color = '#44ff44'
+        else:
+            dist = distances[i]
+            title_text = f'Frame {demo_indices[i]}\nDistanz: {dist}'
+            if dist < 30:
+                title_color = '#44ff44'  # grün
+            elif dist < 60:
+                title_color = '#ffaa44'  # gelb
+            else:
+                title_color = '#ff4444'  # rot
+
+        axes[i].set_title(title_text, color=title_color, fontsize=9, fontweight='bold')
+        axes[i].axis('off')
+
+    fig.suptitle('Die GLEICHE Ecke — Hamming-Distanz von Frame 0 wächst mit Kamerabewegung',
+                 fontsize=11, color='#ffff88', fontweight='bold')
+    plt.tight_layout()
+    plt.show()
+
+    # Teil 2: Balken-Diagramm mit Schwellenlinien
+    fig, ax = plt.subplots(figsize=(11, 6))
+
+    # Balken-Farben basierend auf Distanz
+    colors = []
+    for d in distances:
+        if d < 30:
+            colors.append('#44ff44')  # grün
+        elif d < 60:
+            colors.append('#ffaa44')  # gelb
+        else:
+            colors.append('#ff4444')  # rot
+
+    # Balken zeichnen
+    frame_labels = [f'F{demo_indices[i]}' for i in range(6)]
+    bars = ax.bar(range(6), distances, color=colors, edgecolor='white', linewidth=1.5, width=0.5)
+
+    # Schwellenlinien
+    ax.axhline(30,  color='#44ff44', linestyle='--', linewidth=2.5, alpha=0.7, label='≤ 30 Bits: Sehr gut ✅')
+    ax.axhline(60,  color='#ffaa44', linestyle='--', linewidth=2.5, alpha=0.7, label='≤ 60 Bits: Noch akzeptabel ⚠️')
+    ax.axhline(100, color='#ff4444', linestyle='--', linewidth=2.5, alpha=0.7, label='> 100 Bits: Wird verworfen ❌')
+
+    # Labels
+    ax.set_xticks(range(6))
+    ax.set_xticklabels(frame_labels, color='white', fontsize=10, fontweight='bold')
+    ax.set_ylabel('Hamming-Distanz (Bits)', color='white', fontsize=11, fontweight='bold')
+    ax.set_xlabel('Frame', color='white', fontsize=11, fontweight='bold')
+    ax.set_title('Hamming-Distanzen von Frame 0 zu jedem Frame\n(Grün=gut, Gelb=ok, Rot=schlecht)',
+                 color='white', fontsize=11, fontweight='bold', pad=15)
+    ax.set_ylim(0, max(distances) * 1.2)
+
+    # Distanzwerte auf den Balken schreiben
+    for i, (bar, d) in enumerate(zip(bars, distances)):
+        ax.text(i, d + 2, str(d), ha='center', va='bottom', color='white',
+               fontsize=10, fontweight='bold')
+
+    # Styling
+    ax.set_facecolor('#191919')
+    ax.tick_params(colors='white', labelsize=10)
+    for spine in ['bottom', 'left']:
+        ax.spines[spine].set_color('white')
+    for spine in ['top', 'right']:
+        ax.spines[spine].set_visible(False)
+
+    ax.legend(loc='upper left', framealpha=0.95, facecolor='#191919',
+             edgecolor='white', labelcolor='white', fontsize=9)
+
+    fig.patch.set_facecolor('#1a1a1a')
+    plt.tight_layout()
+    plt.show()
+
+    # Erklärung
+    print(f"📊 Hamming-Distanz für EINE Ecke über 6 Frames:")
+    for i, d in enumerate(distances):
+        status = "✅ Sehr gut" if d < 30 else "⚠️  Akzeptabel" if d < 60 else "❌ Zu weit"
+        print(f"  • Frame {demo_indices[i]} → Distanz {d:3d} Bits {status}")
+    print(f"\n→ Je weiter die Kamera sich bewegt, desto größer die Hamming-Distanz!")
+```
+
+**Wichtig — Vergleich mit welchem Frame?**
+
+In diesem Beispiel vergleichen wir **immer mit Frame 0** (dem Referenz-Frame):
+- Distanz(Frame 0, Frame 0) = **0 Bits** (identisch mit sich selbst)
+- Distanz(Frame 0, Frame 6) = **~8 Bits** (Kamera hat sich wenig bewegt → ähnlich)
+- Distanz(Frame 0, Frame 126) = **~70 Bits** (Kamera hat sich weit bewegt → sehr unterschiedlich)
+
+**Im echten ORB-SLAM3 werden stattdessen konsekutive Frames verglichen:**
+- Frame 0 → Frame 6: kleine Distanz (Kamera wenig bewegt)
+- Frame 6 → Frame 36: kleine Distanz (wieder wenig bewegt)
+- ...und so weiter
+
+Das macht mehr Sinn, weil sich die Kamera zwischen zwei aufeinanderfolgenden Frames nur **minimal** bewegt → die Ecken sehen sich sehr ähnlich → stabile, robuste Matches.
+
+---
+
+## Schritt 11: Pose-Schätzung — Theorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** gematchte Punktpaare &nbsp;→&nbsp; **Ausgang → Schritt 12:** Rotation R und Translation t
+:::
+
+**Ziel:** Aus ≥5 Pointpaaren → Kamerabewegung
+
+**Essential Matrix:**
+
+$$x'^T E x = 0$$
+
+Zerlegen mit SVD → R, t
+
+**RANSAC:** Ignoriere Ausreißer durch Iteration
+
+---
+
+**Schritt für Schritt:**
+
+1. **Eingabe:** Mindestens 5 gematchte Punktpaare $(x_i, x'_i)$ aus Schritt 10 (Koordinaten im Bild)
+2. **Essential Matrix E berechnen:** Basiert auf epipolar geometry — der mathematischen Beziehung zwischen zwei Kamerasichten
+   - `cv2.findEssentialMat` mit RANSAC findet die beste E, die zu den meisten Punkten passt (Ausreißer werden ignoriert)
+3. **R und t aus E extrahieren:** Die Essential Matrix wird per SVD zerlegt → ergibt Rotation R und Translation t
+   - R = wie viel die Kamera gedreht hat
+   - t = wie viel die Kamera verschoben hat
+4. **Ausgabe:** R ∈ SO(3) (3×3 Rotationsmatrix), t ∈ ℝ³ (3D Translationsvektor)
+
+---
+
+## Schritt 11: Pose-Schätzung — Beispiel: Alle 5 Konsekutiv-Paare aus 6 Frames
+
+```{python}
+#| fig-align: center
+if len(demo_frames_gray) == 6 and len(demo_frames_rgb) == 6:
+    orb11 = cv2.ORB_create(nfeatures=500)
+    bf11 = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+    rotation_angles = []
+    frame_pairs = []
+
+    # Verarbeite alle 5 konsekutiven Paare
+    for pair_idx in range(5):
+        frame_a = demo_frames_gray[pair_idx]
+        frame_b = demo_frames_gray[pair_idx + 1]
+        frame_a_rgb = demo_frames_rgb[pair_idx]
+        frame_b_rgb = demo_frames_rgb[pair_idx + 1]
+
+        # ORB Features
+        kp_a, des_a = orb11.detectAndCompute(frame_a, None)
+        kp_b, des_b = orb11.detectAndCompute(frame_b, None)
+
+        if des_a is not None and des_b is not None:
+            # Matching + Lowe's Ratio Test
+            matches_raw = bf11.knnMatch(des_a, des_b, k=2)
+            good_matches_pair = []
+            for pair in matches_raw:
+                if len(pair) == 2:
+                    m, n = pair
+                    if m.distance < 0.75 * n.distance:
+                        good_matches_pair.append(m)
+
+            if len(good_matches_pair) >= 5:
+                # Punkte extrahieren
+                pts_a = np.float32([kp_a[m.queryIdx].pt for m in good_matches_pair])
+                pts_b = np.float32([kp_b[m.trainIdx].pt for m in good_matches_pair])
+
+                # Camera Matrix
+                fx, fy = 500, 500
+                cx, cy = frame_a.shape[1]//2, frame_a.shape[0]//2
+
+                # Essential Matrix + RANSAC
+                E, mask_E = cv2.findEssentialMat(pts_a, pts_b, focal=fx, pp=(cx, cy),
+                                                 method=cv2.RANSAC, prob=0.999, threshold=1.0)
+
+                if E is not None:
+                    # R und t extrahieren
+                    _, R, t, mask_R = cv2.recoverPose(E, pts_a, pts_b, focal=fx, pp=(cx, cy))
+
+                    # Rotationswinkel (Achsen-Winkel-Form)
+                    trace_R = np.trace(R)
+                    angle_rad = np.arccos(np.clip((trace_R - 1) / 2, -1, 1))
+                    angle_deg = np.degrees(angle_rad)
+
+                    rotation_angles.append(angle_deg)
+                    frame_pairs.append(f"{demo_indices[pair_idx]} → {demo_indices[pair_idx+1]}")
+
+    # Visualisierung 1: Match-Bild für das erste Paar
+    if len(good_matches) >= 5 and len(demo_frames_rgb) >= 2:
+        fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+
+        # Match-Visualisierung für Frame 0 → Frame 1
+        match_img = cv2.drawMatches(demo_frames_rgb[0], cv2.ORB_create().detect(demo_frames_gray[0]),
+                                     demo_frames_rgb[1], cv2.ORB_create().detect(demo_frames_gray[1]),
+                                     good_matches[:15], None,
+                                     matchColor=(80,255,80), singlePointColor=(255,255,255),
+                                     flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        axes[0].imshow(match_img)
+        axes[0].set_title(f'RANSAC Inlier (Frame 0 → Frame 6)\n{len(good_matches)} Matches gefunden', fontsize=11, color='#44ff44', fontweight='bold')
+        axes[0].axis('off')
+
+        axes[1].axis('off')
+        axes[1].text(0.1, 0.5, "Schritt 11 extrahiert aus diesen Matches:\n\n• Rotation R (Winkel in Grad)\n• Translation t (Bewegungsvektor)\n\nRansac filtert Ausreißer raus\n(rot = verworfen, grün = inlier)",
+                    fontsize=11, color='white', verticalalignment='center',
+                    bbox=dict(boxstyle='round', facecolor='#1a3a1a', alpha=0.9, pad=1))
+
+        plt.tight_layout()
+        plt.show()
+
+    # Visualisierung 2: Rotationswinkel pro Frame-Paar
+    if len(rotation_angles) > 0:
+        fig, ax = plt.subplots(figsize=(12, 5))
+        colors = ['#ffaa44' if deg > 5 else '#44ff44' for deg in rotation_angles]
+        bars = ax.bar(range(len(rotation_angles)), rotation_angles, color=colors, edgecolor='white', linewidth=1.5, width=0.6)
+
+        ax.axhline(y=5, color='#44ff44', linestyle='--', linewidth=2, alpha=0.6, label='Kleine Rotation (< 5°)')
+        ax.axhline(y=10, color='#ffaa44', linestyle='--', linewidth=2, alpha=0.6, label='Mittlere Rotation (< 10°)')
+
+        ax.set_xticks(range(len(frame_pairs)))
+        ax.set_xticklabels(frame_pairs, fontsize=9, color='white')
+        ax.set_ylabel('Rotationswinkel (Grad)', fontsize=11, color='white', fontweight='bold')
+        ax.set_xlabel('Frame-Paar', fontsize=11, color='white', fontweight='bold')
+        ax.set_title('Kamerarotation pro Frame-Paar (aus 5 konsekutiven Paaren berechnet)', fontsize=11, color='#ffff88', fontweight='bold')
+
+        # Werte auf Balken
+        for i, (bar, deg) in enumerate(zip(bars, rotation_angles)):
+            ax.text(i, deg + 0.3, f'{deg:.1f}°', ha='center', va='bottom', color='white', fontsize=10, fontweight='bold')
+
+        ax.set_facecolor('#191919')
+        ax.tick_params(colors='white')
+        ax.spines['bottom'].set_color('white')
+        ax.spines['left'].set_color('white')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.legend(loc='upper right', framealpha=0.9)
+
+        fig.patch.set_facecolor('#1a1a1a')
+        plt.tight_layout()
+        plt.show()
+
+    print(f"📊 Kamerabewegung aus 5 Frame-Paaren:")
+    for pair, angle in zip(frame_pairs, rotation_angles):
+        print(f"  • {pair}: Rotation {angle:.2f}°")
+```
+
+---
+
+## Schritt 12: Trajektorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** R, t pro Frame &nbsp;→&nbsp; **Ausgang (1.2 fertig):** Kamera-Trajektorie
+:::
+
+**Akkumulation der Posen:**
+
+$$P_i = P_{i-1} + R_{i-1}^T \cdot t_i$$
+
+**Schritt für Schritt:**
+
+1. **Startposition:** Kamera bei Ursprung $(0, 0, 0)$, Orientierung = Identität (keine Rotation)
+2. **Loop über alle Frame-Paare:** Für jedes Paar $(F_i, F_{i+1})$:
+   - Berechne $R_i, t_i$ aus Schritt 11
+   - Neue Position: $P_{i+1} = P_i + R_i^T \cdot t_i$ (Verschiebung in Kamera-Koordinaten)
+   - Neue Orientierung: $R_\text{neu} = R_\text{alt} \cdot R_i$ (Rotationen kombinieren)
+3. **Ausgabe:** Satz von Positionen $\{P_0, P_1, P_2, ..., P_N\}$ — die **Kamera-Trajektorie**
+
+**Wichtig — Drift:**
+- Kleine Fehler in jedem $(R_i, t_i)$ akkumulieren sich → über viele Frames wird die Trajektorie immer ungenauer
+- Das ist der Grund für Loop Closure Detection und Bundle Adjustment in echtem ORB-SLAM3
+
+---
+
+## Schritt 12: Trajektorie — Beispiel
+
+```{python}
+#| fig-align: center
+if len(demo_frames_gray) == 6:
+    orb12 = cv2.ORB_create(nfeatures=500)
+    bf12 = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+    # Speichere alle R und t Matrizen aus den 5 Paaren
+    poses = []
+
+    for pair_idx in range(5):
+        frame_a = demo_frames_gray[pair_idx]
+        frame_b = demo_frames_gray[pair_idx + 1]
+
+        # ORB Features
+        kp_a, des_a = orb12.detectAndCompute(frame_a, None)
+        kp_b, des_b = orb12.detectAndCompute(frame_b, None)
+
+        if des_a is not None and des_b is not None:
+            # Matching + Lowe's Ratio
+            matches_raw = bf12.knnMatch(des_a, des_b, k=2)
+            good_m = []
+            for pair in matches_raw:
+                if len(pair) == 2:
+                    m, n = pair
+                    if m.distance < 0.75 * n.distance:
+                        good_m.append(m)
+
+            if len(good_m) >= 5:
+                pts_a = np.float32([kp_a[m.queryIdx].pt for m in good_m])
+                pts_b = np.float32([kp_b[m.trainIdx].pt for m in good_m])
+
+                fx, fy = 500, 500
+                cx, cy = frame_a.shape[1]//2, frame_a.shape[0]//2
+
+                E, _ = cv2.findEssentialMat(pts_a, pts_b, focal=fx, pp=(cx, cy),
+                                           method=cv2.RANSAC, prob=0.999, threshold=1.0)
+
+                if E is not None:
+                    _, R, t, _ = cv2.recoverPose(E, pts_a, pts_b, focal=fx, pp=(cx, cy))
+                    poses.append((R, t))
+
+    # Trajektorie akkumulieren
+    if len(poses) > 0:
+        positions = [np.array([0.0, 0.0, 0.0])]  # Startposition
+        R_global = np.eye(3)
+
+        for R_i, t_i in poses:
+            # Neue Position im globalen Koordinatensystem
+            pos_new = positions[-1] + R_global.T @ t_i.flatten()
+            positions.append(pos_new)
+
+            # Globale Rotation aktualisieren
+            R_global = R_global @ R_i
+
+        # Visualisierung: Draufsicht (X vs Z)
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        xs = [pos[0] for pos in positions]
+        zs = [pos[2] for pos in positions]  # Z = Tiefe (forward/backward)
+
+        # Linien zwischen den Positionen (mit Farbe)
+        for i in range(len(positions) - 1):
+            color_val = i / max(len(positions) - 2, 1)  # 0 (blau) → 1 (grün)
+            color = plt.cm.cool(color_val)
+            ax.plot([xs[i], xs[i+1]], [zs[i], zs[i+1]], 'o-', color=color, linewidth=2.5, markersize=8)
+
+        # Punkte mit Frame-Nummern beschriften
+        for i, (x, z) in enumerate(zip(xs, zs)):
+            frame_num = demo_indices[i]
+            ax.text(x + 0.02, z + 0.02, f'F{i}', fontsize=11, color='white', fontweight='bold',
+                   bbox=dict(boxstyle='round', facecolor='#1a3a1a', alpha=0.8))
+
+        ax.set_xlabel('X (Seitliche Bewegung)', fontsize=11, color='white', fontweight='bold')
+        ax.set_ylabel('Z (Tiefe / Forward)', fontsize=11, color='white', fontweight='bold')
+        ax.set_title('Kamera-Trajektorie — 2D Draufsicht\n(Aus 5 Frame-Paaren akkumuliert)',
+                    fontsize=12, color='#ffff88', fontweight='bold')
+
+        ax.set_facecolor('#191919')
+        ax.grid(True, alpha=0.2, color='white')
+        ax.tick_params(colors='white')
+        for spine in ['bottom', 'left', 'top', 'right']:
+            ax.spines[spine].set_color('white')
+
+        # Anfang und Ende markieren
+        ax.plot(xs[0], zs[0], 'g*', markersize=20, label='START (Frame 0)')
+        ax.plot(xs[-1], zs[-1], 'r*', markersize=20, label='END (Frame 126)')
+        ax.legend(loc='best', framealpha=0.9, facecolor='#191919', edgecolor='white', labelcolor='white')
+
+        fig.patch.set_facecolor('#1a1a1a')
+        plt.tight_layout()
+        plt.show()
+
+        # Zusammenfassung
+        total_distance = sum([np.linalg.norm(positions[i+1] - positions[i]) for i in range(len(positions)-1)])
+        print(f"📍 Kamera-Trajektorie über 6 Frames:")
+        for i, pos in enumerate(positions):
+            print(f"  • Frame {demo_indices[i]}: Position ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f})")
+        print(f"\n→ Gesamtbahn: {total_distance:.3f} Einheiten")
+        print(f"→ Fehler akkumuliert sich über Zeit → das ist das Drift-Problem!")
+```
+
+---
+
+## Zusammenfassung 1.2
+
+| Schritt | Algorithmus | Ergebnis |
+|:---:|:---|:---|
+| 8 | Patch + Orientierung | (x, y, θ) |
+| 9 | Binärer Deskriptor | 256-Bit Fingerabdruck |
+| 10 | Hamming Matching | Gematchte Paare |
+| 11 | Essential Matrix | R, t (Pose) |
+| 12 | Pose-Akkumulation | **Kamera-Trajektorie** |
+
+**Ergebnis 1.2:** Aus Bildsequenz → Präzise Kamera-Bewegung + Pfad.

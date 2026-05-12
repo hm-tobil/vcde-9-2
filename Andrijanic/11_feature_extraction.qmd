@@ -1,0 +1,943 @@
+---
+title: "1.1 Feature Extraction"
+subtitle: "ORB-SLAM3 — Visuelle Merkmale erkennen und beschreiben"
+author: "Nediljko Andrijanic"
+date: today
+lang: de
+format:
+  html:
+    theme: darkly
+    toc: true
+    toc-depth: 2
+    toc-title: "Inhalt"
+    number-sections: false
+    fig-align: center
+    highlight-style: github-dark
+    embed-resources: true
+execute:
+  echo: false
+  eval: true
+  warning: false
+  message: false
+---
+
+```{python}
+#| include: false
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import Patch, FancyBboxPatch
+import glob
+
+plt.style.use('dark_background')
+plt.rcParams.update({
+    'figure.facecolor': '#191919',
+    'axes.facecolor':   '#191919',
+    'savefig.facecolor':'#191919',
+    'font.size': 11,
+})
+
+bildpfade = sorted(glob.glob('../cam0/*.png'))
+bild_bgr  = cv2.imread(bildpfade[0])
+bild_bgr2 = cv2.imread(bildpfade[1])
+bild_rgb  = cv2.cvtColor(bild_bgr,  cv2.COLOR_BGR2RGB)
+bild_rgb2 = cv2.cvtColor(bild_bgr2, cv2.COLOR_BGR2RGB)
+grau      = cv2.cvtColor(bild_bgr,  cv2.COLOR_BGR2GRAY)
+grau2     = cv2.cvtColor(bild_bgr2, cv2.COLOR_BGR2GRAY)
+geglättet = cv2.GaussianBlur(grau, (5, 5), 1)
+
+KREIS = [
+    (0,3),(1,3),(2,2),(3,1),(3,0),(3,-1),(2,-2),(1,-3),
+    (0,-3),(-1,-3),(-2,-2),(-3,-1),(-3,0),(-3,1),(-2,2),(-1,3)
+]
+```
+
+## Agenda
+
+1. Was sieht die Kamera?
+2. **Schritt 1–2:** Graustufen & Gauss-Filter
+3. **Schritt 3:** Bildpyramide — Skalierungsinvarianz
+4. **Schritt 4–5:** FAST Detektor & Adaptiver Schwellenwert
+5. **Schritt 6:** Quadtree — Gleichmäßige Verteilung
+6. **Schritt 7:** Harris Score → **Ergebnis: beste Keypoints**
+:::
+
+
+
+## 1.1 Feature Extraction — Pipeline
+
+```{mermaid}
+flowchart LR
+    A["Kamerabild\nRGB"] --> B["1. Graustufen"]
+    B --> C["2. Gauss-Filter"]
+    C --> D["3. Bildpyramide\n8 Stufen"]
+    D --> E["4. FAST Detektor\npro Stufe"]
+    E --> F["5. Adaptiver\nSchwellenwert"]
+    F --> G["6. Quadtree\nVerteilung"]
+    G --> H["7. Harris Score\nRanking"]
+    H --> Z["Keypoints\n(x, y)\npro Frame"]
+
+    style A fill:#1d3557,color:#fff,font-size:14px
+    style B fill:#457b9d,color:#fff,font-size:14px
+    style C fill:#457b9d,color:#fff,font-size:14px
+    style D fill:#e63946,color:#fff,font-size:14px
+    style E fill:#e63946,color:#fff,font-size:14px
+    style F fill:#e63946,color:#fff,font-size:14px
+    style G fill:#e63946,color:#fff,font-size:14px
+    style H fill:#e63946,color:#fff,font-size:14px
+    style Z fill:#2d6a4f,color:#fff,font-size:14px
+```
+
+**Blau** = Vorverarbeitung &nbsp;|&nbsp; **Rot** = ORB-SLAM3 spezifisch &nbsp;|&nbsp; **Grün** = Ergebnis 1.1
+&nbsp;&nbsp; → Deskriptor (Patch + Binäre Tests) kommt in **1.2 Visuelle Odometrie**
+:::
+
+
+
+## Was sieht die Kamera?
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+axes[0].imshow(bild_rgb)
+axes[0].set_title('Kamerabild', fontsize=14)
+axes[0].axis('off')
+
+py, px = 160, 310
+zoom = grau[py:py+8, px:px+8]
+im = axes[1].imshow(zoom, cmap='gray', vmin=0, vmax=255)
+axes[1].set_title('Was der Computer wirklich sieht\n(Ausschnitt 8×8 Pixel — jede Zahl = Helligkeit 0–255)', fontsize=12)
+for i in range(8):
+    for j in range(8):
+        farbe = 'white' if zoom[i,j] < 140 else 'black'
+        axes[1].text(j, i, str(zoom[i,j]), ha='center', va='center',
+                     fontsize=10, color=farbe, fontweight='bold')
+axes[1].set_xticks([]); axes[1].set_yticks([])
+plt.colorbar(im, ax=axes[1], label='Helligkeit')
+plt.tight_layout()
+plt.show()
+```
+
+**Ein Bild = Matrix aus Zahlen. 0 = schwarz, 255 = weiß.
+Feature Extraction findet die wichtigsten Positionen in dieser Matrix.**
+:::
+
+
+
+## Schritt 1: Graustufen
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** RGB-Kamerabild &nbsp;→&nbsp; **Ausgang → Schritt 2:** Graustufenbild (1 Kanal, Helligkeit 0–255)
+:::
+
+**Warum?** Farbe liefert keine geometrische Information. Nur Helligkeit zählt.
+
+$$I_{grau} = 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$$
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+
+axes[0].imshow(bild_rgb)
+axes[0].set_title('Original (RGB)', fontsize=13)
+axes[0].axis('off')
+
+axes[1].imshow(grau, cmap='gray')
+axes[1].set_title('Graustufen', fontsize=13)
+axes[1].axis('off')
+
+py, px = 200, 400
+B = int(bild_bgr[py,px][0]); G = int(bild_bgr[py,px][1]); R = int(bild_bgr[py,px][2])
+I = int(0.299*R + 0.587*G + 0.114*B)
+axes[2].axis('off')
+axes[2].text(0.05, 0.93, f'Rechenbeispiel — Pixel ({px},{py}):', fontsize=13,
+             transform=axes[2].transAxes, color='#aaaaff', fontweight='bold',
+             verticalalignment='top')
+rechnung = (
+    f"  R = {R}\n"
+    f"  G = {G}\n"
+    f"  B = {B}\n\n"
+    f"  I = 0.299 × {R} = {0.299*R:.1f}\n"
+    f"    + 0.587 × {G} = {0.587*G:.1f}\n"
+    f"    + 0.114 × {B} = {0.114*B:.1f}\n"
+    f"    ─────────────────\n"
+    f"  I = {I}"
+)
+axes[2].text(0.05, 0.78, rechnung, fontsize=12, transform=axes[2].transAxes,
+             verticalalignment='top', fontfamily='monospace', color='white',
+             bbox=dict(boxstyle='round', facecolor='#2a2a2a', alpha=0.9))
+plt.tight_layout()
+plt.show()
+```
+
+
+
+## Schritt 2: Gauss-Filter — Theorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** Graustufenbild &nbsp;→&nbsp; **Ausgang → Schritt 3:** geglättetes Bild (Rauschen reduziert)
+:::
+
+**Problem:** Kamerasensoren erzeugen Rauschen — zufällige Helligkeits-Schwankungen die keine echten Ecken sind.
+
+::: {.columns}
+::: {.column width="50%"}
+**Lösung — Gauss-Filter:**
+
+Jeder Pixel bekommt einen neuen Wert = **gewichteter Durchschnitt** seiner Nachbarn.
+
+$$G(x,y) = \frac{1}{2\pi\sigma^2} e^{-\frac{x^2+y^2}{2\sigma^2}}$$
+
+- Pixel in der **Mitte** zählt am meisten
+- Pixel am **Rand** zählen weniger
+- Rauschen wird geglättet
+- Echte Kanten bleiben erhalten
+:::
+::: {.column width="50%"}
+
+```
+Gauss-Kernel (5×5, σ=1):
+
+0.004  0.016  0.026  0.016  0.004
+0.016  0.071  0.117  0.071  0.016
+0.026  0.117  0.195  0.117  0.026   ← Mitte am größten
+0.016  0.071  0.117  0.071  0.016
+0.004  0.016  0.026  0.016  0.004
+```
+
+Alle Gewichte summieren sich zu **1.0**.
+:::
+:::
+
+
+
+## Schritt 2: Gauss-Filter — Rauschen sichtbar machen
+
+```{python}
+#| fig-align: center
+# Künstliches Rauschen hinzufügen damit es sichtbar ist
+np.random.seed(42)
+rauschen = np.random.normal(0, 25, grau.shape).astype(np.int16)
+grau_verrauscht = np.clip(grau.astype(np.int16) + rauschen, 0, 255).astype(np.uint8)
+grau_geglättet = cv2.GaussianBlur(grau_verrauscht, (5, 5), 1)
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+axes[0].imshow(grau_verrauscht, cmap='gray')
+axes[0].set_title('Verrauschtes Bild\n(+Rauschen σ=25)', fontsize=12)
+axes[0].axis('off')
+
+axes[1].imshow(grau_geglättet, cmap='gray')
+axes[1].set_title('Nach Gauss-Filter\n(Rauschen geglättet)', fontsize=12)
+axes[1].axis('off')
+
+# Differenzbild — zeigt was entfernt wurde
+diff = cv2.absdiff(grau_verrauscht, grau_geglättet)
+diff_norm = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
+im = axes[2].imshow(diff_norm, cmap='hot')
+axes[2].set_title('Unterschied\n(hell = viel Rauschen entfernt)', fontsize=12)
+axes[2].axis('off')
+plt.colorbar(im, ax=axes[2], label='Änderung')
+plt.suptitle('Gauss-Filter entfernt das Rauschen — echte Kanten bleiben erhalten', fontsize=13)
+plt.tight_layout()
+plt.show()
+```
+
+
+
+## Schritt 2: Gauss-Filter — Animation
+
+```{python}
+#| include: false
+kernel_1d = cv2.getGaussianKernel(5, 1)
+kernel_norm = (kernel_1d @ kernel_1d.T)
+kernel_norm /= kernel_norm.sum()
+
+patch_vor = np.array([
+    [ 22,  18,  25,  19,  23],
+    [ 20,  17,  21,  24,  18],
+    [ 19,  23, 250,  21,  20],
+    [ 21,  18,  19,  22,  17],
+    [ 23,  20,  24,  18,  21],
+], dtype=float)
+patch_nach = cv2.GaussianBlur(patch_vor.astype(np.float32), (5,5), 1)
+neuer_wert = int(patch_nach[2, 2])
+
+def zeichne_grid(ax, data, highlight_center=False, highlight_nachbarn=False,
+                 zeige_gewichte=False, zeige_ergebnis=False):
+    nachbarn = [(1,1),(1,2),(1,3),(2,1),(2,3),(3,1),(3,2),(3,3)]
+    for i in range(5):
+        for j in range(5):
+            val = data[i, j]
+            ist_mitte = (i==2 and j==2)
+            ist_nachbar = (i,j) in nachbarn
+            if ist_mitte and highlight_center and not zeige_ergebnis:
+                farbe = [0.85, 0.15, 0.15]
+            elif ist_mitte and zeige_ergebnis:
+                farbe = [0.15, 0.75, 0.15]
+            elif ist_nachbar and highlight_nachbarn:
+                farbe = [0.15, 0.50, 0.85]
+            else:
+                v = val / 255.0
+                farbe = [v, v, v]
+            rect = plt.Rectangle([j-0.5, i-0.5], 1, 1, color=farbe)
+            ax.add_patch(rect)
+            if zeige_gewichte and ist_nachbar:
+                r, c = i, j
+                ax.text(j, i-0.22, str(int(val)), ha='center', va='center',
+                        color='white', fontsize=9, fontweight='bold')
+                ax.text(j, i+0.22, f'×{kernel_norm[r,c]:.3f}', ha='center', va='center',
+                        color='#ffff88', fontsize=7)
+            elif zeige_ergebnis and ist_mitte:
+                ax.text(j, i, str(neuer_wert), ha='center', va='center',
+                        color='black', fontsize=14, fontweight='bold')
+            elif ist_mitte and highlight_center:
+                ax.text(j, i, str(int(val)), ha='center', va='center',
+                        color='white', fontsize=14, fontweight='bold')
+            else:
+                fg = 'black' if val > 140 else 'white'
+                ax.text(j, i, str(int(val)), ha='center', va='center',
+                        color=fg, fontsize=10, fontweight='bold')
+    for x in np.arange(-0.5, 5, 1):
+        ax.axvline(x, color='#444444', lw=1)
+        ax.axhline(x, color='#444444', lw=1)
+    ax.set_xlim(-0.5, 4.5); ax.set_ylim(4.5, -0.5)
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.set_aspect('equal')
+```
+
+**Schritt 1:** Das 5×5 Grid — alle Pixel ~20 (dunkel), aber Pixel (2,2) = **250** (heller Ausreißer)
+
+```{python}
+#| fig-align: center
+fig, ax = plt.subplots(figsize=(5, 5))
+zeichne_grid(ax, patch_vor, highlight_center=True)
+ax.set_title('Ausgangslage: Pixel (2,2) = 250 (Rauschen!)\nAlle Nachbarn ≈ 20 (dunkel)', fontsize=13, color='white')
+plt.tight_layout(); plt.show()
+```
+
+**Schritt 2:** Der Gauss-Filter schaut die **8 direkten Nachbarn** an — die sagen alle ~100
+
+```{python}
+#| fig-align: center
+fig, ax = plt.subplots(figsize=(5, 5))
+zeichne_grid(ax, patch_vor, highlight_center=True, highlight_nachbarn=True, zeige_gewichte=True)
+ax.set_title('Nachbarn (blau) sagen: "Wir sind ~100"\nJeder hat ein Gewicht (× ...)', fontsize=12, color='white')
+plt.tight_layout(); plt.show()
+```
+:::
+
+**Schritt 3:** Neuer Wert = gewichteter Durchschnitt → 220 passt sich der Umgebung an
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+zeichne_grid(axes[0], patch_vor, highlight_center=True, highlight_nachbarn=True)
+axes[0].set_title('Vorher: 250 (Rausch-Pixel)', fontsize=12, color='tomato')
+zeichne_grid(axes[1], patch_nach, zeige_ergebnis=True)
+axes[1].set_title(f'Nachher: {neuer_wert} (≈ wie die Nachbarn ~20)', fontsize=12, color='lime')
+plt.tight_layout(); plt.show()
+```
+
+**Ergebnis: 250 → {neuer_wert}** — der Ausreißer wird stark nach unten gezogen weil 24 Nachbarn (~20) zusammen viel mehr Gewicht haben als der eine Pixel. Echte Kanten (wo ALLE Pixel hell sind) bleiben erhalten.
+
+## Schritt 2: Gauss-Filter — Die Rechnung
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 3, figsize=(14, 5.5))
+
+# Grid 1: Pixelwerte
+ax = axes[0]
+ax.set_title('Pixelwerte', fontsize=13, color='white')
+for i in range(5):
+    for j in range(5):
+        val = int(patch_vor[i, j])
+        ist_mitte = (i==2 and j==2)
+        fc = [0.85, 0.15, 0.15] if ist_mitte else [0.08, 0.08, 0.08]
+        rect = plt.Rectangle([j-0.5, i-0.5], 1, 1, color=fc)
+        ax.add_patch(rect)
+        fg = 'white' if not ist_mitte else 'white'
+        ax.text(j, i, str(val), ha='center', va='center',
+                color=fg, fontsize=11, fontweight='bold')
+for x in np.arange(-0.5, 5, 1):
+    ax.axvline(x, color='#333', lw=1); ax.axhline(x, color='#333', lw=1)
+ax.set_xlim(-0.5,4.5); ax.set_ylim(4.5,-0.5); ax.set_xticks([]); ax.set_yticks([])
+ax.set_aspect('equal')
+
+# Grid 2: Kernel-Gewichte
+ax = axes[1]
+ax.set_title('× Gauss-Gewichte', fontsize=13, color='white')
+for i in range(5):
+    for j in range(5):
+        w = kernel_norm[i, j]
+        ist_mitte = (i==2 and j==2)
+        fc = [0.2, 0.4, 0.8] if ist_mitte else [0.05+w*3, 0.05+w*3, 0.15+w*2]
+        rect = plt.Rectangle([j-0.5, i-0.5], 1, 1, color=fc)
+        ax.add_patch(rect)
+        ax.text(j, i, f'{w:.3f}', ha='center', va='center',
+                color='white', fontsize=9, fontweight='bold')
+for x in np.arange(-0.5, 5, 1):
+    ax.axvline(x, color='#333', lw=1); ax.axhline(x, color='#333', lw=1)
+ax.set_xlim(-0.5,4.5); ax.set_ylim(4.5,-0.5); ax.set_xticks([]); ax.set_yticks([])
+ax.set_aspect('equal')
+
+# Grid 3: Produkte + Summe
+ax = axes[2]
+ax.set_title('= Pixel × Gewicht', fontsize=13, color='white')
+produkte = patch_vor * kernel_norm
+gesamt = produkte.sum()
+for i in range(5):
+    for j in range(5):
+        p = produkte[i, j]
+        ist_mitte = (i==2 and j==2)
+        fc = [0.15, 0.75, 0.15] if ist_mitte else [min(p/60, 0.6)]*2 + [0.1]
+        rect = plt.Rectangle([j-0.5, i-0.5], 1, 1, color=fc)
+        ax.add_patch(rect)
+        ax.text(j, i, f'{p:.1f}', ha='center', va='center',
+                color='white', fontsize=9, fontweight='bold')
+for x in np.arange(-0.5, 5, 1):
+    ax.axvline(x, color='#333', lw=1); ax.axhline(x, color='#333', lw=1)
+ax.set_xlim(-0.5,4.5); ax.set_ylim(4.5,-0.5); ax.set_xticks([]); ax.set_yticks([])
+ax.set_aspect('equal')
+
+# Summen-Zeile unten
+mitte_beitrag = patch_vor[2,2] * kernel_norm[2,2]
+rest_beitrag  = gesamt - mitte_beitrag
+fig.text(0.5, -0.06,
+    f'Rausch-Pixel (250) trägt bei:  250 × 0.195 = {mitte_beitrag:.1f}\n'
+    f'Alle 24 Nachbarn (~20) tragen bei:  ≈ {rest_beitrag:.1f}\n'
+    f'Summe = {mitte_beitrag:.1f} + {rest_beitrag:.1f} = {gesamt:.0f}  →  neuer Pixelwert = {int(gesamt)}',
+    ha='center', fontsize=11, color='#aaffaa',
+    bbox=dict(facecolor='#1a2a1a', edgecolor='#4caf50', boxstyle='round', pad=0.5))
+plt.tight_layout()
+plt.show()
+```
+:::
+
+
+
+## Schritt 3: Bildpyramide — Theorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** geglättetes Bild &nbsp;→&nbsp; **Ausgang → Schritt 4:** 8 skalierte Versionen desselben Bildes
+:::
+
+**Problem:** Dasselbe Feature sieht je nach Entfernung anders groß aus.
+
+::: {.columns}
+::: {.column width="55%"}
+**Beispiel:**
+- Eine Straßenlaterne **2m** entfernt → groß im Bild
+- Dieselbe Laterne **10m** entfernt → kleiner im Bild
+
+→ ORB ohne Pyramide würde **dieselbe Laterne nicht wiedererkennen**.
+
+**Lösung — Bildpyramide:**
+
+Verarbeite das Bild in **8 Größenstufen** (Skalierungsfaktor 1.2):
+
+| Stufe | Faktor | Bildgröße (Bsp.) |
+|:---:|:---:|:---:|
+| 0 | 1.0× | 800×400 |
+| 1 | 0.83× | 667×333 |
+| 3 | 0.58× | 463×231 |
+| 7 | 0.28× | 223×111 |
+
+Features auf Stufe 3 entsprechen Objekten die **1.73× kleiner** erscheinen.
+:::
+::: {.column width="45%"}
+**Warum funktioniert das?**
+
+Ein Feature das auf Stufe 0 zu groß erscheint, wird auf Stufe 2 oder 3 erkannt — dort sieht es "normal groß" aus.
+
+```
+Stufe 0: 800×400  ─── FAST ──→ Features
+  ↓ ÷1.2
+Stufe 1: 667×333  ─── FAST ──→ Features
+  ↓ ÷1.2
+Stufe 2: 556×278  ─── FAST ──→ Features
+  ...
+Stufe 7: 223×111  ─── FAST ──→ Features
+```
+
+Alle Features → auf Originalmaßstab zurückgerechnet.
+:::
+:::
+
+**Wichtig — Rückrechnung auf echte Koordinaten:**
+
+Ein Feature das auf Stufe $k$ bei Position $(x_k, y_k)$ gefunden wird, entspricht im **Originalbild** der Position:
+
+$$x_\text{original} = x_k \times 1.2^k \qquad y_\text{original} = y_k \times 1.2^k$$
+
+Beispiel: Feature auf Stufe 3 bei $(100, 50)$ → im Original bei $(100 \times 1.73,\ 50 \times 1.73) = (173,\ 87)$
+
+Alle Features aus allen 8 Stufen werden so ins Original umgerechnet und dann gemeinsam weiterverarbeitet.
+
+
+
+## Schritt 3: Bildpyramide — Beispiel
+
+```{python}
+#| fig-align: center
+skala = 1.2; n_stufen = 4
+fig, axes = plt.subplots(1, n_stufen, figsize=(14, 5))
+bild_akt = bild_rgb.copy()
+for i in range(n_stufen):
+    h, w = bild_akt.shape[:2]
+    faktor = skala**i
+    ft_i = cv2.FastFeatureDetector_create(threshold=20)
+    kps_i = ft_i.detect(cv2.cvtColor(bild_akt, cv2.COLOR_RGB2GRAY), None)
+    img_i = bild_akt.copy()
+    for k in kps_i[:80]:
+        cv2.circle(img_i, (int(k.pt[0]), int(k.pt[1])), 3, (255,80,80), -1)
+    axes[i].imshow(img_i)
+    axes[i].set_title(f'Stufe {i}\n{w}×{h} px\nFaktor: 1/{faktor:.2f}\n{len(kps_i)} Features', fontsize=10)
+    axes[i].axis('off')
+    if i < n_stufen-1:
+        bild_akt = cv2.resize(bild_akt, (int(w/skala), int(h/skala)))
+plt.suptitle('Bildpyramide (erste 4 von 8 Stufen) — rote Punkte = erkannte Features pro Stufe',
+             fontsize=12, y=1.01)
+plt.tight_layout()
+plt.show()
+```
+
+**Was zeigt dieses Bild?**
+
+Jedes Panel zeigt dasselbe Kamerabild, aber jede Stufe ist **1.2× kleiner** als die vorherige. Die roten Punkte sind Features die FAST auf **dieser Stufe** findet.
+
+- **Stufe 0** (Original): FAST sucht nach Ecken mit Radius 3 Pixel → erkennt kleine, feine Features
+- **Stufe 1–3** (verkleinert): Dasselbe Bild kleiner → ein Objekt das im Original "zu groß" war (z.B. breite Kante) wird jetzt kompakt genug für den r=3 Kreis → FAST erkennt es erst jetzt
+- Deshalb: **unterschiedliche Features** erscheinen auf unterschiedlichen Stufen!
+
+**Ergebnis:** Features werden **skalierungsinvariant** — ORB-SLAM3 erkennt dasselbe Objekt in 2m und 10m Entfernung.
+
+---
+
+### Sub-Pixel Genauigkeit durch die Pyramide
+
+Besonders wichtig: Die Pyramide ermöglicht auch **sehr kleine Features** (weit entfernte Objekte) mit hoher Präzision zu lokalisieren.
+
+Wenn FAST ein Feature auf Stufe $k$ findet, wird seine Position auf das **Originalmaßstab zurückgerechnet**:
+
+$$\text{Position}_\text{original} = \text{Position}_\text{Stufe k} \times 1.2^k$$
+
+Das bedeutet: 1 Schritt in Stufe $k$ = $1.2^k$ Pixel im Original. Die **effektive Auflösung** ist also:
+
+| Stufe k | Skalierungsfaktor | 1 Pixel entspricht im Original | Genauigkeit |
+|:---:|:---:|:---:|:---:|
+| 0 | 1.0× | 1.00 px | ±1.0 px |
+| 3 | 1.73× | 1.73 px | **±0.58 px** |
+| 5 | 2.49× | 2.49 px | **±0.40 px** |
+| 7 | 3.58× | 3.58 px | **±0.28 px ≈ 0.3 px** |
+
+**Konsequenz:** Ein Feature das auf Stufe 7 bei Position (100, 50) erkannt wird, entspricht im Originalbild **Position (358, 179)** — mit einer Genauigkeit von ~0.28 Pixel. Features aus höheren Stufen haben damit **sub-pixel Präzision** im Originalmaßstab.
+
+```{python}
+#| fig-align: center
+import matplotlib.patches as mpatches
+
+fig, ax = plt.subplots(figsize=(12, 3.5))
+ax.set_xlim(0, 10); ax.set_ylim(-0.5, 3.5); ax.axis('off')
+ax.set_facecolor('#0a0a0a'); fig.patch.set_facecolor('#0a0a0a')
+
+stufen   = [0, 1, 3, 5, 7]
+faktoren = [1.2**k for k in stufen]
+farben   = ['#4fc3f7', '#7bc67e', '#ffcc02', '#ff9800', '#ef5350']
+labels   = [f'Stufe {k}' for k in stufen]
+
+for idx, (k, f, c) in enumerate(zip(stufen, faktoren, farben)):
+    x_center = idx * 2 + 1
+    breite = 1.6 / f
+    rect = mpatches.FancyBboxPatch(
+        (x_center - breite/2, 1.2), breite, 1.2,
+        boxstyle='round,pad=0.05', fc=c, alpha=0.85, ec='white', lw=1.5
+    )
+    ax.add_patch(rect)
+    ax.text(x_center, 1.8, f'Stufe {k}', ha='center', va='center',
+            color='black', fontsize=10, fontweight='bold')
+    genauigkeit = 1/f
+    ax.text(x_center, 0.7, f'1 px = {f:.2f} px\nim Original',
+            ha='center', va='center', color='#aaa', fontsize=8)
+    ax.text(x_center, 0.1, f'±{genauigkeit:.2f} px\nGenauigkeit',
+            ha='center', va='center', color=c, fontsize=9, fontweight='bold')
+
+ax.text(5, 3.1, 'Je höher die Pyramidenstufe → feinere Sub-Pixel-Genauigkeit im Original',
+        ha='center', va='center', color='white', fontsize=11)
+plt.tight_layout()
+plt.show()
+```
+
+**Fazit:** Die Bildpyramide ist nicht nur für Skalierungsinvarianz — sie gibt ORB-SLAM3 auch **sub-pixel Präzision (~0.3 px)** bei der Feature-Lokalisierung auf höheren Stufen.
+:::
+
+
+
+## Schritt 4: FAST Detektor — Theorie
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** jede Pyramidenstufe (8 Bilder) &nbsp;→&nbsp; **Ausgang → Schritt 5:** viele Keypoints mit Position (x, y)
+:::
+
+**Ziel:** Finde Ecken im Bild. Eine Ecke ist ein Punkt, wo sich Helligkeit abrupt in zwei Richtungen ändert.
+
+::: {.columns}
+::: {.column width="55%"}
+**Algorithmus — für jeden Pixel p:**
+
+1. Zeichne einen Kreis mit **16 Nachbarn** (Radius 3)
+2. Prüfe ob ≥ **9 zusammenhängende** Pixel entweder:
+   - **Heller** sind: $I_x > I_p + t$
+   - **Dunkler** sind: $I_x < I_p - t$
+3. Falls ja → **Ecke erkannt**
+
+$t$ = Schwellenwert
+
+**Warum 9?** Mindestens die Hälfte+1 des Kreises (16/2 + 1 = 9) muss konsistent sein.
+:::
+::: {.column width="45%"}
+```
+     ×  ×  ×
+   ×  1  2  3  ×
+  × 16        4 ×
+  × 15    p   5 ×    ← Zentrum p
+  × 14        6 ×
+   × 13  8  7  ×
+     × 12 11 10 9 ×
+
+Wenn z.B. Pixel 1–10 alle
+dunkler als p−t sind:
+→ 10 zusammenhängende
+→ ECKE!
+```
+:::
+:::
+
+
+
+## Schritt 4: FAST Detektor — Pixel-Grid Beispiel
+
+```{python}
+#| fig-align: center
+fast_det = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+kps_fast = fast_det.detect(geglättet, None)
+kp_best  = max(kps_fast, key=lambda x: x.response)
+cx, cy   = int(kp_best.pt[0]), int(kp_best.pt[1])
+
+r = 3
+grid = geglättet[cy-r:cy+r+1, cx-r:cx+r+1].copy().astype(int)
+I_p  = grid[r, r]
+t    = 25
+kreis_set = {(dy+r, dx+r) for dx, dy in KREIS}
+
+rgb_grid = np.full((2*r+1, 2*r+1, 3), 0.06)
+
+heller_n = dunkler_n = aehnlich_n = 0
+for (row, col) in kreis_set:
+    val = grid[row, col]
+    if val > I_p + t:
+        rgb_grid[row, col] = [0.15, 0.80, 0.15]; heller_n  += 1
+    elif val < I_p - t:
+        rgb_grid[row, col] = [0.85, 0.15, 0.15]; dunkler_n += 1
+    else:
+        rgb_grid[row, col] = [0.40, 0.40, 0.40]; aehnlich_n += 1
+rgb_grid[r, r] = [1.0, 0.85, 0.0]
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+axes[0].imshow(rgb_grid, aspect='equal', interpolation='nearest')
+for i in range(2*r+1):
+    for j in range(2*r+1):
+        is_center = (i == r and j == r)
+        is_kreis  = (i, j) in kreis_set
+        if is_center:
+            axes[0].text(j, i, str(grid[i, j]), ha='center', va='center',
+                         color='black', fontsize=14, fontweight='bold')
+        elif is_kreis:
+            axes[0].text(j, i, str(grid[i, j]), ha='center', va='center',
+                         color='white', fontsize=12, fontweight='bold')
+
+for x in np.arange(-0.5, 2*r+1, 1):
+    axes[0].axvline(x, color='#2a2a2a', lw=1.0)
+    axes[0].axhline(x, color='#2a2a2a', lw=1.0)
+
+axes[0].set_xticks([]); axes[0].set_yticks([])
+axes[0].set_title(
+    f'7×7 Pixel-Grid — Zentrum p bei ({cx},{cy})\n'
+    f'Nur die 16 Kreis-Pixel + Zentrum sind relevant',
+    fontsize=12
+)
+
+legend_h = [
+    Patch(color='#ffdd00', label=f'Zentrum p = {I_p}'),
+    Patch(color='#22cc22', label=f'Heller (> {I_p}+{t} = {I_p+t}): {heller_n} Pixel'),
+    Patch(color='#cc2222', label=f'Dunkler (< {I_p}-{t} = {I_p-t}): {dunkler_n} Pixel'),
+    Patch(color='#666666', label=f'Ähnlich (±{t}): {aehnlich_n} Pixel'),
+    Patch(color='#111111', label='Zwischenpixel — irrelevant für FAST'),
+]
+axes[0].legend(handles=legend_h, loc='lower left', fontsize=9, framealpha=0.85)
+
+axes[1].axis('off')
+max_konsistent = max(heller_n, dunkler_n)
+ist_ecke = max_konsistent >= 9
+ergebnis_text = 'ECKE ERKANNT!' if ist_ecke else 'Keine Ecke'
+ergebnis_farbe = '#22ee22' if ist_ecke else 'tomato'
+
+auswertung = (
+    f"Zentrum  p  = {I_p}\n\n"
+    f"Heller-Grenze:   > {I_p} + {t} = {I_p+t}\n"
+    f"Dunkler-Grenze:  < {I_p} - {t} = {I_p-t}\n\n"
+    f"Helle Kreis-Pixel:   {heller_n}\n"
+    f"Dunkle Kreis-Pixel:  {dunkler_n}\n"
+    f"Ähnliche Pixel:      {aehnlich_n}\n\n"
+    f"Max. zusammenhängend: {max_konsistent}\n"
+    f"Bedingung: ≥ 9\n"
+)
+axes[1].text(0.08, 0.95, 'Auswertung:', fontsize=14, transform=axes[1].transAxes,
+             color='#aaaaff', fontweight='bold', verticalalignment='top')
+axes[1].text(0.08, 0.82, auswertung, fontsize=12, transform=axes[1].transAxes,
+             verticalalignment='top', fontfamily='monospace', color='white',
+             bbox=dict(boxstyle='round', facecolor='#222222', alpha=0.9))
+axes[1].text(0.08, 0.12, ergebnis_text, fontsize=18, transform=axes[1].transAxes,
+             color=ergebnis_farbe, fontweight='bold',
+             bbox=dict(boxstyle='round', facecolor='#111111',
+                       edgecolor=ergebnis_farbe, linewidth=2.5))
+plt.tight_layout()
+plt.show()
+```
+
+
+
+## Schritt 5: Adaptiver FAST-Schwellenwert
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** Keypoints (evtl. manche Zonen leer) &nbsp;→&nbsp; **Ausgang → Schritt 6:** Keypoints aus allen Bildbereichen
+:::
+
+**Theorie:** Nicht alle Bildregionen haben gleich viel Textur.
+
+::: {.columns}
+::: {.column width="50%"}
+**Strategie:**
+
+1. Wende FAST mit `iniThFAST = 10` an
+2. Falls Region hat **< 5 Features** → zu wenig!
+3. → Wiederhole mit `minThFAST = 7` (sensibler)
+
+**Warum wichtig?**
+
+Ohne Fallback: texturarme Zonen (Himmel, Wände) → **0 Features** → Tracking verloren!
+
+Mit Fallback: auch schwache Ecken werden erkannt → **stabiles Tracking**.
+:::
+::: {.column width="50%"}
+**In ORB-SLAM3 Code:**
+```python
+kp = FAST(img, iniThFAST)
+
+if len(kp) == 0:
+    # Fallback!
+    kp = FAST(img, minThFAST)
+```
+
+**Einfluss des Schwellenwerts t:**
+
+| t | Empfindlichkeit | Features |
+|:---:|:---:|:---:|
+| 60 | niedrig | wenige, starke |
+| 10 | mittel | ausgewogen |
+| 7 | hoch | viele, auch schwache |
+:::
+:::
+
+```{python}
+#| fig-align: center
+tile_h, tile_w = grau.shape[0]//4, grau.shape[1]//4
+min_var, bty, btx = float('inf'), 0, 0
+for ty in range(4):
+    for tx in range(4):
+        v = np.var(grau[ty*tile_h:(ty+1)*tile_h, tx*tile_w:(tx+1)*tile_w])
+        if v < min_var: min_var=v; bty,btx=ty,tx
+region_g   = grau[bty*tile_h:(bty+1)*tile_h, btx*tile_w:(btx+1)*tile_w]
+region_rgb = bild_rgb[bty*tile_h:(bty+1)*tile_h, btx*tile_w:(btx+1)*tile_w]
+kps10 = cv2.FastFeatureDetector_create(threshold=10).detect(region_g, None)
+kps7  = cv2.FastFeatureDetector_create(threshold=7 ).detect(region_g, None)
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+axes[0].imshow(bild_rgb)
+rect = patches.Rectangle((btx*tile_w, bty*tile_h), tile_w, tile_h,
+                           lw=3, edgecolor='yellow', facecolor='none')
+axes[0].add_patch(rect); axes[0].axis('off')
+axes[0].set_title(f'Texturarme Region\n(niedrigste Varianz: {min_var:.0f})', fontsize=11)
+for ax, kps, t_v, fc in [(axes[1],kps10,10,'#ff5050'),(axes[2],kps7,7,'#50ff50')]:
+    img_t = region_rgb.copy()
+    for k in kps: cv2.circle(img_t,(int(k.pt[0]),int(k.pt[1])),4,
+                              (255,80,80) if fc=='#ff5050' else (80,255,80),-1)
+    ax.imshow(img_t); ax.axis('off')
+    ax.set_title(f'Schwellenwert t={t_v}\n→ {len(kps)} Features'
+                 + ('\n  Zu wenig → Fallback!' if len(kps)<5 and t_v==10 else
+                    '\n  Fallback erfolgreich!' if t_v==7 else ''), fontsize=11)
+plt.tight_layout(); plt.show()
+```
+
+
+
+## Schritt 6: Quadtree-Verteilung
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** viele Keypoints (geclustert an Kanten) &nbsp;→&nbsp; **Ausgang → Schritt 7:** gleichmäßig verteilte Keypoints
+:::
+
+**Theorie:** FAST liefert sehr viele Features — aber sie clustern sich alle an denselben Kanten.
+
+::: {.columns}
+::: {.column width="50%"}
+**Problem ohne Quadtree:**
+
+- 90% der Features an einer Kante
+- Andere Bildbereiche = **leer**
+- Wenn Kamera dreht → **alle Features verschwinden**!
+
+**Lösung — Quadtree:**
+
+1. Teile Bild in **4 Quadranten**
+2. Jeder Quadrant zu voll → **nochmals teilen**
+3. Wiederholen bis jede Zelle genug Features hat
+4. Pro Zelle → **nur der stärkste** Keypoint bleibt
+
+**Ergebnis:** Features gleichmäßig über das Bild verteilt.
+:::
+::: {.column width="50%"}
+**Visualisierung:**
+
+```
+Bild [800×400]
+┌──────────┬──────────┐
+│  Q1      │  Q2      │  pro Quadrant:
+│  125 kps │  125 kps │  max. 125 Features
+├──────────┼──────────┤  → falls mehr:
+│  Q3      │  Q4      │     nochmals teilen
+│  125 kps │  125 kps │
+└──────────┴──────────┘
+
+→ 500 Features total,
+  gleichmäßig verteilt
+```
+:::
+:::
+
+```{python}
+#| fig-align: center
+fast_all2 = cv2.FastFeatureDetector_create(threshold=15)
+kps_all2  = fast_all2.detect(geglättet, None)
+fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+img_o = bild_rgb.copy()
+for k in kps_all2[:500]:
+    cv2.circle(img_o,(int(k.pt[0]),int(k.pt[1])),3,(255,80,80),-1)
+axes[0].imshow(img_o); axes[0].axis('off')
+axes[0].set_title(f'Ohne Quadtree: {min(len(kps_all2),500)} Features\n→ clustern an Kanten', fontsize=11)
+nx,ny=20,10; H,W=grau.shape; cw,ch=W//nx,H//ny
+img_q = bild_rgb.copy(); qt_f=[]
+for ty in range(ny):
+    for tx in range(nx):
+        beste=None
+        for k in kps_all2:
+            kx,ky=int(k.pt[0]),int(k.pt[1])
+            if tx*cw<=kx<(tx+1)*cw and ty*ch<=ky<(ty+1)*ch:
+                if beste is None or k.response>beste.response: beste=k
+        if beste:
+            qt_f.append(beste)
+            cv2.circle(img_q,(int(beste.pt[0]),int(beste.pt[1])),4,(80,255,80),-1)
+        cv2.rectangle(img_q,(tx*cw,ty*ch),((tx+1)*cw-1,(ty+1)*ch-1),(50,50,50),1)
+axes[1].imshow(img_q); axes[1].axis('off')
+axes[1].set_title(f'Mit Quadtree: {len(qt_f)} Features\n→ gleichmäßig verteilt', fontsize=11)
+plt.tight_layout(); plt.show()
+```
+
+
+
+## Schritt 7: Harris Corner Score
+
+::: {style="background:#1a2a1a; border-left:4px solid #4caf50; padding:6px 12px; margin-bottom:8px; font-size:0.85em;"}
+**Eingang:** verteilte Keypoints (mehrere pro Zelle) &nbsp;→&nbsp; **Ausgang (1.1 fertig):** Top-N stabilste Keypoints mit Position (x,y)
+:::
+
+**Theorie:** Quadtree liefert pro Zelle mehrere Kandidaten — welcher ist der Beste?
+
+::: {.columns}
+::: {.column width="55%"}
+**Harris-Response:**
+
+$$R = \det(M) - k \cdot \text{trace}(M)^2, \quad k \approx 0.04$$
+
+$$M = \begin{pmatrix} \sum I_x^2 & \sum I_x I_y \\ \sum I_x I_y & \sum I_y^2 \end{pmatrix}$$
+
+**Interpretation:**
+- $R \gg 0$ → **starke Ecke** (beide Richtungen haben Kante)
+- $R < 0$ → Kante (nur eine Richtung)
+- $R \approx 0$ → flache Region (keine Kante)
+
+Pro Quadtree-Zelle → behalte den Keypoint mit dem **höchsten R**.
+:::
+::: {.column width="45%"}
+**Warum nicht einfach den FAST-Score nehmen?**
+
+FAST misst nur ob ein Pixel eine Ecke ist (ja/nein).
+Harris misst **wie stark** die Ecke ist.
+
+→ Harris findet **geometrisch stabilere** Ecken die über viele Frames hinweg wiedererkannt werden.
+:::
+:::
+
+```{python}
+#| fig-align: center
+harris = cv2.cornerHarris(geglättet.astype(np.float32), blockSize=3, ksize=3, k=0.04)
+
+# Nur die qt_f Features (Quadtree-Output) bewerten
+kps_hs = [(k, float(harris[int(k.pt[1]), int(k.pt[0])]))
+          for k in qt_f
+          if 0 <= int(k.pt[1]) < harris.shape[0] and 0 <= int(k.pt[0]) < harris.shape[1]]
+kps_hs.sort(key=lambda x: -x[1])
+
+n_behalten = min(50, len(kps_hs))
+top_h  = [k for k, s in kps_hs[:n_behalten]]
+weak_h = [k for k, s in kps_hs[n_behalten:]]
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+
+# Links: Quadtree-Output (Eingang für Harris)
+img_ein = bild_rgb.copy()
+for k in qt_f:
+    cv2.circle(img_ein, (int(k.pt[0]), int(k.pt[1])), 5, (80, 200, 255), -1)
+axes[0].imshow(img_ein); axes[0].axis('off')
+axes[0].set_title(f'Eingang: {len(qt_f)} Quadtree-Features\n(alle gleichmäßig verteilt)', fontsize=11)
+
+# Rechts: Harris bewertet → grün behalten, rot verworfen
+img_v = bild_rgb.copy()
+for k in weak_h: cv2.circle(img_v, (int(k.pt[0]), int(k.pt[1])), 5, (255, 80, 80), 1)
+for k in top_h:  cv2.circle(img_v, (int(k.pt[0]), int(k.pt[1])), 7, (80, 255, 80), -1)
+axes[1].imshow(img_v); axes[1].axis('off')
+axes[1].set_title(f'Ausgang: Top {n_behalten} behalten (grün), {len(weak_h)} verworfen (rot)\n→ nur die stabilsten Ecken', fontsize=11)
+axes[1].legend(handles=[Patch(color='lime', label=f'Top {n_behalten} behalten'),
+                         Patch(color='tomato', label='Verworfen')],
+               loc='lower right', fontsize=10)
+plt.tight_layout(); plt.show()
+```
+
+
+
+## Zusammenfassung 1.1
+
+| Schritt | Algorithmus | Was passiert | Ergebnis |
+|:---:|:---|:---|:---|
+| 1 | Graustufen | RGB → 1 Kanal | Graustufenbild |
+| 2 | Gauss-Filter | Rauschen glätten | Sauberes Bild |
+| 3 | Bildpyramide | 8 Größenstufen | Skalenraum |
+| 4 | FAST | Ecken finden | Keypoint-Positionen |
+| 5 | Adaptiver FAST | Fallback bei wenig Textur | Keine leeren Zonen |
+| 6 | Quadtree | Gleichmäßig verteilen | Uniformes Feature-Grid |
+| 7 | Harris Score | Qualität bewerten | **Beste Keypoints (x,y)** |
+
+**Ergebnis 1.1:** Pro Frame N Keypoints mit Position (x,y) — bereit für 1.2 Visuelle Odometrie.
+:::

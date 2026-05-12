@@ -1,0 +1,943 @@
+---
+title: "Feature Extraction & Visuelle Odometrie"
+subtitle: "Thema 9: V-SLAM — ORB-SLAM3"
+author: "Nediljko Andrijanic"
+date: today
+lang: de
+format:
+  revealjs:
+    theme: dark
+    slide-number: true
+    chalkboard: true
+    transition: slide
+    transition-speed: fast
+    highlight-style: github-dark
+    fig-align: center
+    code-fold: false
+    code-line-numbers: true
+    smaller: false
+    scrollable: false
+    footer: "Visual Computing — HS 2025 | Feature Extraction & Visuelle Odometrie"
+    logo: ""
+execute:
+  echo: true
+  eval: false
+  warning: false
+---
+
+## Agenda {.center}
+
+::: {.incremental}
+1. **1.1 Feature Extraction** — Was sind visuelle Merkmale?
+2. **Vorverarbeitung** — Graustufen & Gauss-Filter
+3. **FAST Detektor** — Eckpunkterkennung
+4. **ORB Deskriptor** — Binäre Beschreibung
+5. **1.2 Visuelle Odometrie** — Kamerabewegung aus Bildern
+6. **Feature Matching & RANSAC** — Robuste Korrespondenzen
+7. **Epipolare Geometrie** — Essential Matrix
+8. **Pose Recovery** — Rotation & Translation
+9. **ORB-SLAM3 Kontext** — Wo passt das rein?
+:::
+
+---
+
+# 1.1 Feature Extraction {background-color="#1a1a2e"}
+
+## Warum Features? {.center}
+
+::: {.columns}
+::: {.column width="50%"}
+**Was ein Mensch sieht:**
+
+- Objekte, Formen, Bedeutung
+- „Das ist ein Stuhl"
+- Invariant gegenüber Beleuchtung und Winkel
+:::
+::: {.column width="50%"}
+**Was ein Computer sieht:**
+
+- Pixelmatrix mit Intensitätswerten
+- 800 × 400 = 320.000 Zahlen
+- Kein semantisches Verständnis
+:::
+:::
+
+::: {.callout-tip}
+**Lösung:** Reduziere das Bild auf seine **markantesten Punkte** (Features) —
+Ecken, Kanten, Texturen. Diese sind stabil, wiedererkennbar und recheneffizient.
+:::
+
+::: {.fragment}
+**ORB-SLAM3** verarbeitet pro Frame ~1000–2000 Features statt 320.000 Pixel.
+:::
+
+---
+
+## Geschichte der Feature Detektoren
+
+| Jahr | Methode | Eigenschaft |
+|:---:|:---|:---|
+| 1988 | **Harris** Corner | Ecken durch Gradienten-Matrix |
+| 2004 | **SIFT** (Lowe) | Skalen- und rotationsinvariant — zu langsam für Echtzeit |
+| 2006 | **SURF** | Schneller als SIFT — noch patentiert |
+| 2010 | **BRIEF** | Binäre Deskriptoren — sehr schnell, kein Patent |
+| **2011** | **ORB** (Rublee et al.) | FAST + BRIEF + Rotation — Echtzeit, Open Source, **Standard in ORB-SLAM3** |
+
+---
+
+## Schritt 1: Vorverarbeitung
+
+**Ziel:** Bild vereinfachen ohne wichtige Strukturen zu verlieren.
+
+::: {.columns}
+::: {.column width="50%"}
+**Graustufen-Konvertierung**
+
+$$I_{grau} = 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$$
+
+- Farbe irrelevant für Geometrie
+- 3 Kanäle → 1 Kanal (3× schneller)
+:::
+::: {.column width="50%"}
+**Gauss-Filter (Rauschunterdrückung)**
+
+$$G(x,y) = \frac{1}{2\pi\sigma^2} e^{-\frac{x^2+y^2}{2\sigma^2}}$$
+
+- Glättet Kamerarauschen
+- 5×5 Kernel, $\sigma = 1$
+- Verhindert Falsch-Detektionen
+:::
+:::
+
+```python
+# Graustufen und Gauss-Filterung
+grau = cv2.cvtColor(bild, cv2.COLOR_BGR2GRAY)
+geglättet = cv2.GaussianBlur(grau, (5, 5), 1)
+```
+
+---
+
+## Schritt 2: FAST Detektor
+
+**FAST** = *Features from Accelerated Segment Test*
+
+::: {.columns}
+::: {.column width="60%"}
+**Prinzip:**
+
+Für jeden Pixel $p$ wird ein Kreisring mit **16 Nachbarpixeln** (Bresenham-Kreis, Radius 3) geprüft.
+
+**Bedingung für eine Ecke:**
+Mindestens **9 zusammenhängende** Pixel im Ring erfüllen:
+
+$$I_x > I_p + t \quad \text{(heller)}$$
+$$\text{oder} \quad I_x < I_p - t \quad \text{(dunkler)}$$
+
+$t$ = Schwellenwert (typisch 10–30)
+:::
+::: {.column width="40%"}
+```
+    × × × × ×
+  ×  12 13 14  ×
+ × 11        15 ×
+× 10    p     0 ×
+ × 9          1 ×
+  ×  8  7  6  ×
+    × 5 4 3 2 ×
+```
+*Kreisring mit 16 Pixeln*
+:::
+:::
+
+---
+
+## FAST — Code & Vergleich
+
+```python
+# FAST mit verschiedenen Schwellenwerten
+for schwellenwert in [10, 30, 60]:
+    fast = cv2.FastFeatureDetector_create(threshold=schwellenwert)
+    keypoints = fast.detect(geglättet, None)
+    print(f"t={schwellenwert}: {len(keypoints)} Keypoints")
+```
+
+::: {.fragment}
+**Ergebnis auf unserem Datensatz:**
+
+| Schwellenwert | Anzahl Keypoints | Qualität |
+|:---:|:---:|:---|
+| t = 10 | ~2400 | Sehr viele, viel Rauschen |
+| t = 30 | ~800 | Ausgewogen |
+| t = 60 | ~200 | Wenige, sehr stabile Ecken |
+
+ORB-SLAM3 verwendet **adaptive Schwellenwerte** je nach Texturreichtum.
+:::
+
+---
+
+## Schritt 3: ORB Deskriptor
+
+**ORB** = *Oriented FAST and Rotated BRIEF*
+
+**Problem mit reinem FAST:** Kein Deskriptor — wir können Keypoints nicht vergleichen!
+
+::: {.fragment}
+**BRIEF** (*Binary Robust Independent Elementary Features*):
+
+Für jeden Keypoint $p$ werden **256 Paare** von Pixeln $(x_i, y_i)$ verglichen:
+
+$$\tau(p;\, x_i, y_i) = \begin{cases} 1 & \text{falls } I(x_i) < I(y_i) \\ 0 & \text{sonst} \end{cases}$$
+
+Ergebnis: Ein **256-Bit Binärvektor** pro Keypoint.
+:::
+
+::: {.fragment}
+**ORB erweitert BRIEF um Rotationsinvarianz:**
+
+1. Berechne **Intensitätsschwerpunkt** (Steiner-Punkt) des Patches
+2. Berechne Orientierung $\theta = \text{atan2}(m_{01}, m_{10})$
+3. Rotiere die Testpaare um $\theta$
+:::
+
+---
+
+## ORB — Warum binär? {.smaller}
+
+::: {.columns}
+::: {.column width="50%"}
+**SIFT Deskriptor:**
+- 128 Float-Werte
+- 512 Bytes pro Keypoint
+- Hamming-Distanz: teuer
+
+**ORB Deskriptor:**
+- 256 Bits = **32 Bytes** pro Keypoint
+- 16× kleiner als SIFT
+- Vergleich mit XOR + Popcount: **extrem schnell**
+:::
+::: {.column width="50%"}
+**Hamming-Distanz** (für ORB):
+
+$$d_H(a, b) = \sum_{i=1}^{256} a_i \oplus b_i$$
+
+Zwei Deskriptoren sind gleich, wenn $d_H < 64$ (typisch).
+
+```python
+# XOR auf 32-Byte-Blöcken —
+# eine CPU-Instruktion pro 64 Bit
+dist = bin(int(a) ^ int(b)).count('1')
+```
+:::
+:::
+
+---
+
+## ORB — Code & Ergebnis
+
+```python
+# ORB Detektor: 500 stärkste Features
+orb = cv2.ORB_create(nfeatures=500)
+keypoints, deskriptoren = orb.detectAndCompute(geglättet, None)
+
+print(f"Anzahl Keypoints: {len(keypoints)}")
+print(f"Deskriptor-Form:  {deskriptoren.shape[0]} × {deskriptoren.shape[1] * 8} Bits")
+# → 500 × 256 Bits
+```
+
+::: {.fragment}
+**Ausgabe unseres Datensatzes:**
+```
+Anzahl Keypoints: 500
+Deskriptor-Form:  500 × 256 Bits
+Stärkster Keypoint: Position (423, 187), Stärke 127.5
+```
+:::
+
+::: {.fragment}
+**Visualisierung:** Keypoints konzentrieren sich auf texturreiche Bereiche
+(Kanten, Ecken, Muster) — homogene Flächen haben kaum Features.
+:::
+
+---
+
+## ORB-SLAM3: Bildpyramide (Skalenraum)
+
+**Problem:** Ein Feature das weit weg ist, sieht kleiner aus — der Deskriptor passt nicht mehr.
+
+**Lösung:** Das Bild in **8 Skalenstufen** verarbeiten (Faktor 1.2 pro Stufe):
+
+$$n_k = N \cdot \frac{1 - s}{1 - s^L} \cdot s^k \quad (s=1.2,\; L=8,\; N=2000)$$
+
+```python
+# Bildpyramide erstellen (wie in ORB-SLAM3)
+skalierungsfaktor = 1.2
+stufen = 8
+bild_aktuell = grau.copy()
+
+for stufe in range(stufen):
+    hoehe, breite = bild_aktuell.shape
+    features_pro_stufe = int(2000 * (1 - 1.2) / (1 - 1.2**8) * 1.2**stufe)
+    print(f"Stufe {stufe}: {breite}×{hoehe} px — ~{features_pro_stufe} Features")
+    bild_aktuell = cv2.resize(bild_aktuell,
+        (int(breite / skalierungsfaktor), int(hoehe / skalierungsfaktor)))
+```
+
+::: {.fragment}
+| Stufe | Bildgröße | Approx. Features |
+|:---:|:---:|:---:|
+| 0 | 800 × 400 | 480 |
+| 2 | 555 × 277 | 333 |
+| 4 | 385 × 192 | 231 |
+| 7 | 223 × 111 | 78 |
+:::
+
+---
+
+## ORB-SLAM3: Adaptiver FAST-Schwellenwert
+
+**Ziel:** Features auch in texturarmen Regionen finden (z.B. Himmel, weiße Wände).
+
+::: {.columns}
+::: {.column width="55%"}
+**Zwei-Stufen-Strategie:**
+
+1. Versuche `iniThFAST = 10` (streng)
+2. Falls keine Features gefunden → `minThFAST = 7` (locker)
+
+$$\text{Fallback falls } |KP_{t=10}| = 0 \Rightarrow t = 7$$
+
+```python
+# Adaptiver Schwellenwert (ORB-SLAM3 Prinzip)
+fast_streng  = cv2.FastFeatureDetector_create(threshold=10)
+fast_locker  = cv2.FastFeatureDetector_create(threshold=7)
+
+kp = fast_streng.detect(bildausschnitt, None)
+if len(kp) == 0:
+    # Fallback auf niedrigeren Schwellenwert
+    kp = fast_locker.detect(bildausschnitt, None)
+    print("Fallback auf minThFAST=7 aktiviert")
+```
+:::
+::: {.column width="45%"}
+**Warum wichtig?**
+
+Ohne Fallback: texturarme Regionen haben **0 Features** → Tracking-Verlust
+
+Mit Fallback: auch schwache Ecken werden erkannt → stabiles Tracking
+
+| Region | t=10 | t=7 |
+|:---|:---:|:---:|
+| Texturreich | 120 | 280 |
+| Texturarm | **0** | **14** |
+:::
+:::
+
+---
+
+## ORB-SLAM3: Quadtree-Verteilung
+
+**Problem:** Standard-ORB liefert Features die sich an Kanten clustern — andere Bildbereiche sind leer.
+
+**Lösung:** Rekursiver **Quadtree** erzwingt gleichmäßige Verteilung.
+
+::: {.columns}
+::: {.column width="50%"}
+**Algorithmus (`DistributeOctTree`):**
+
+1. Teile Bild in 4 Quadranten
+2. Jeder Quadrant mit zu vielen Features → nochmals teilen
+3. Wiederholen bis Zielanzahl pro Zelle erreicht
+4. Pro Zelle: nur den **stärksten** Keypoint behalten
+
+```python
+# Vereinfachte Quadtree-Visualisierung
+zellen_x, zellen_y = 4, 4  # 16 Zellen
+hoehe, breite = grau.shape
+for i in range(zellen_x):
+    for j in range(zellen_y):
+        zelle = grau[j*hoehe//zellen_y:(j+1)*hoehe//zellen_y,
+                     i*breite//zellen_x:(i+1)*breite//zellen_x]
+        kp = orb.detect(zelle, None)
+        # Nur bester Keypoint pro Zelle
+```
+:::
+::: {.column width="50%"}
+**Ergebnis:**
+
+| | Ohne Quadtree | Mit Quadtree |
+|:---|:---:|:---:|
+| Kanten-Cluster | Stark | Keiner |
+| Leere Bereiche | Viele | Keine |
+| Tracking-Stabilität | Niedrig | Hoch |
+
+**Vorteil für SLAM:** Wenn sich die Kamera dreht, sind Features im gesamten Bild vorhanden — nicht nur an einer Kante.
+:::
+:::
+
+---
+
+## ORB-SLAM3: Harris Corner Score
+
+**FAST findet viele Kandidaten — Harris entscheidet welche gut sind.**
+
+**Harris-Response** misst wie "eckartig" ein Punkt ist:
+
+$$R = \det(M) - k \cdot \text{trace}(M)^2$$
+
+$$M = \begin{pmatrix} \sum I_x^2 & \sum I_x I_y \\ \sum I_x I_y & \sum I_y^2 \end{pmatrix}, \quad k \approx 0.04$$
+
+::: {.columns}
+::: {.column width="55%"}
+```python
+# Harris-Score für FAST-Keypoints berechnen
+harris = cv2.cornerHarris(grau, blockSize=3, ksize=3, k=0.04)
+
+# Scores den FAST-Keypoints zuordnen
+keypoints_mit_score = []
+for kp in fast_keypoints:
+    x, y = int(kp.pt[0]), int(kp.pt[1])
+    score = harris[y, x]
+    keypoints_mit_score.append((kp, score))
+
+# Nach Score sortieren → beste behalten
+keypoints_mit_score.sort(key=lambda x: x[1], reverse=True)
+top_keypoints = [kp for kp, _ in keypoints_mit_score[:500]]
+```
+:::
+::: {.column width="45%"}
+**Interpretation:**
+
+- $R > 0$ → **Ecke** (beide Eigenwerte groß)
+- $R < 0$ → **Kante** (ein Eigenwert groß)
+- $R \approx 0$ → **flache Region** (beide klein)
+
+ORB-SLAM3: Pro Quadtree-Zelle wird nur der Keypoint mit dem **höchsten Harris-Score** behalten.
+:::
+:::
+
+---
+
+## ORB-SLAM3 vs. Standard OpenCV ORB
+
+**ORB-SLAM3's `ORBextractor` ist eine speziell optimierte Version:**
+
+| Aspekt | OpenCV `ORB_create()` | ORB-SLAM3 `ORBextractor` |
+|:---|:---|:---|
+| **FAST Schwellenwert** | Fest (1 Wert) | **Adaptiv** (10 → 7 Fallback) |
+| **Feature-Verteilung** | Grid-basiert | **Rekursiver Quadtree** |
+| **Skalenraum** | Konfigurierbar | **8 Stufen, Faktor 1.2** (optimiert) |
+| **Qualitäts-Ranking** | Einfach | **Harris-Score pro Quadtree-Zelle** |
+| **Texturarme Zonen** | Oft leer | Fallback → Features trotzdem |
+| **Zielgruppe** | Allgemein | **Echtzeit-SLAM (30+ FPS)** |
+
+::: {.callout-tip}
+**Fazit:** Die Unterschiede klingen klein, haben aber große Auswirkungen auf die SLAM-Robustheit.
+Uniform verteilte Features + adaptiver Threshold = stabiles Tracking auch in schwierigen Szenen.
+:::
+
+---
+
+## ORB im ORB-SLAM3 Kontext
+
+```{mermaid}
+flowchart LR
+    A[Kamera\nFrame t] --> B[Feature\nExtraction\n**1.1**]
+    B --> C[Tracking\nVisuelle Odometrie\n**1.2**]
+    C --> D[Local\nMapping\n**2.1/2.2**]
+    D --> E[Loop\nClosure\n**3.1/3.2**]
+    E -->|Korrektur| C
+
+    style B fill:#e63946,color:#fff
+    style C fill:#457b9d,color:#fff
+    style D fill:#2a9d8f,color:#888
+    style E fill:#2a9d8f,color:#888
+```
+
+::: {.callout-note}
+**ORB-SLAM3 verwendet ausschließlich ORB-Features** — sie sind schnell genug für
+Echtzeit (30+ FPS), robust gegenüber Rotation und Skalierung, und patent-frei.
+:::
+
+---
+
+# 1.2 Visuelle Odometrie {background-color="#0d1b2a"}
+
+## Was ist Odometrie? {.center}
+
+::: {.columns}
+::: {.column width="50%"}
+**Klassische Odometrie:**
+- Radencoder messen Umdrehungen
+- Berechnet zurückgelegte Strecke
+- Problem: Schlupf, Drift
+
+**Visuelle Odometrie (VO):**
+- Kamera als einziger Sensor
+- Bewegung aus **Bildunterschieden**
+- Kein GPS, keine anderen Sensoren nötig
+:::
+::: {.column width="50%"}
+**Anwendungsfälle:**
+- Mars-Rover (kein GPS möglich)
+- Unterwasser-Roboter
+- AR-Headsets (HoloLens, Quest)
+- Selbstfahrende Autos
+- Drohnen in GPS-gesperrten Zonen
+:::
+:::
+
+::: {.fragment}
+**Grundprinzip:** Wenn ich zwei aufeinanderfolgende Frames habe und ich dieselben
+Punkte in beiden Bildern identifizieren kann — kann ich berechnen, **wie sich die Kamera bewegt hat**.
+:::
+
+---
+
+## VO Pipeline — Überblick
+
+```{mermaid}
+flowchart TD
+    A["Frame t\n(800×400 Pixel)"] --> C
+    B["Frame t+1\n(800×400 Pixel)"] --> C
+    C[ORB Feature\nExtraction] --> D[Feature Matching\nBrute-Force + Hamming]
+    D --> E[Lowe's Ratio Test\nAmbige Matches filtern]
+    E --> F[RANSAC\nAusreißer entfernen]
+    F --> G[Essential Matrix E\naus Inlier-Punkten]
+    G --> H[SVD-Zerlegung\nE → R und t]
+    H --> I["Kamera-Pose\n(Rotation R, Translation t)"]
+    I --> J[Trajektorie\nakkumulieren]
+
+    style A fill:#1d3557,color:#fff
+    style B fill:#1d3557,color:#fff
+    style G fill:#e63946,color:#fff
+    style I fill:#2a9d8f,color:#fff
+```
+
+---
+
+## Schritt 1: Feature Matching
+
+**Ziel:** Finde dieselben physischen Punkte in Frame $t$ und Frame $t+1$.
+
+::: {.columns}
+::: {.column width="55%"}
+**Brute-Force Matcher mit Hamming-Distanz:**
+
+Für jeden Deskriptor $d_i$ aus Frame $t$:
+- Berechne $d_H(d_i, d_j)$ für alle $d_j$ aus Frame $t+1$
+- Wähle die zwei besten Treffer: $m_1$ (bester), $m_2$ (zweitbester)
+
+```python
+# k-NN Matching (k=2)
+bf = cv2.BFMatcher(cv2.NORM_HAMMING)
+matches = bf.knnMatch(desk1, desk2, k=2)
+```
+:::
+::: {.column width="45%"}
+**Problem:** Viele Matches sind ambig —
+der beste Treffer ist kaum besser als der zweitbeste.
+
+**Lösung:** Lowe's Ratio Test
+:::
+:::
+
+---
+
+## Lowe's Ratio Test
+
+**David Lowe (2004)** — entwickelt für SIFT, funktioniert auch für ORB:
+
+$$\frac{d_1}{d_2} < 0.75$$
+
+::: {.columns}
+::: {.column width="60%"}
+**Interpretation:**
+
+- $d_1$ = Hamming-Distanz zum besten Match
+- $d_2$ = Hamming-Distanz zum zweitbesten Match
+- Wenn der beste Match **deutlich besser** ist als der zweitbeste → **guter Match**
+- Wenn beide ähnlich gut sind → **ambig, verwerfen**
+:::
+::: {.column width="40%"}
+```python
+# Ratio Test
+gute_matches = []
+for m, n in matches:
+    if m.distance < 0.75 * n.distance:
+        gute_matches.append(m)
+
+# ~350-400 von ~1000 überleben
+print(f"{len(gute_matches)} gute Matches")
+```
+:::
+:::
+
+::: {.fragment}
+**Ergebnis auf unserem Datensatz:** ~1000 mögliche → ~350–400 gute Matches nach Ratio Test
+:::
+
+---
+
+## Schritt 2: RANSAC
+
+**RANSAC** = *Random Sample Consensus*
+
+**Problem:** Selbst nach dem Ratio Test gibt es noch Ausreißer (falsche Zuordnungen).
+
+::: {.incremental}
+**Algorithmus:**
+1. Wähle **zufällig** eine minimale Teilmenge von Punktpaaren (z.B. 8 für Fundamentalmatrix)
+2. Schätze das Modell (z.B. Fundamentalmatrix $F$) aus dieser Teilmenge
+3. Zähle **Inlier**: Punkte, die das Modell gut erklären ($d < \epsilon$)
+4. Wiederhole Schritte 1–3 für $N$ Iterationen
+5. Behalte das Modell mit den **meisten Inliern**
+:::
+
+::: {.fragment}
+**Mindestanzahl Iterationen:**
+$$N = \frac{\log(1-p)}{\log(1-(1-\epsilon)^s)}$$
+$p$ = gewünschte Erfolgswahrscheinlichkeit, $\epsilon$ = Ausreißerrate, $s$ = Stichprobengröße
+:::
+
+---
+
+## RANSAC — Code & Visualisierung
+
+```python
+# Koordinaten extrahieren (max. 500 — OpenCV 4.x Bug)
+punkte1 = np.float32([kp1[m.queryIdx].pt for m in gute_matches[:500]])
+punkte2 = np.float32([kp2[m.trainIdx].pt for m in gute_matches[:500]])
+
+# Fundamentalmatrix mit RANSAC
+F, maske = cv2.findFundamentalMat(
+    punkte1, punkte2,
+    cv2.FM_RANSAC,
+    ransacReprojThreshold=1.0,
+    confidence=0.999
+)
+
+# Inlier vs. Outlier trennen
+inlier_matches = [m for m, flag in zip(gute_matches, maske) if flag]
+```
+
+::: {.fragment}
+**Visualisierung:**
+- **Grün** = Inlier (geometrisch konsistent)
+- **Rot** = Outlier (geometrisch inkonsistent)
+- Typisch: ~100–200 Inlier aus ~350 guten Matches
+:::
+
+---
+
+## Schritt 3: Epipolare Geometrie
+
+**Grundprinzip:** Zwei Kameraansichten eines Punktes $X$ sind durch Geometrie verknüpft.
+
+::: {.columns}
+::: {.column width="55%"}
+**Epipolares Constraint:**
+
+$$\mathbf{x}'^T \mathbf{F} \mathbf{x} = 0$$
+
+$\mathbf{F}$ = Fundamentalmatrix (3×3, Rang 2)
+$\mathbf{x}$ = Punkt in Kamera 1
+$\mathbf{x}'$ = korrespondierender Punkt in Kamera 2
+
+**Intuition:** Kamera 1, Kamera 2 und der 3D-Punkt $X$ liegen immer in einer **Ebene** (Epipolarebene).
+:::
+::: {.column width="45%"}
+```
+       X (3D Punkt)
+      / \
+     /   \
+    /     \
+   C1     C2
+    \     /
+     \   /
+      \ /
+   Basislinie
+```
+Die Epipolarlinien sind die Schnittlinien der Epipolarebene mit den Bildebenen.
+:::
+:::
+
+---
+
+## Essential Matrix
+
+**Von Fundamental- zu Essential Matrix:**
+
+$$\mathbf{E} = \mathbf{K}'^T \mathbf{F} \mathbf{K}$$
+
+$\mathbf{K}$ = Kamerakalibrierungsmatrix (intrinsische Parameter)
+
+::: {.columns}
+::: {.column width="50%"}
+**Unsere Kalibrierungsmatrix:**
+
+$$\mathbf{K} = \begin{pmatrix} 640 & 0 & 400 \\ 0 & 640 & 200 \\ 0 & 0 & 1 \end{pmatrix}$$
+
+$f_x = f_y = 640$ px (Brennweite)
+$c_x = 400$, $c_y = 200$ (Hauptpunkt)
+:::
+::: {.column width="50%"}
+**Essential Matrix Formel:**
+
+$$\mathbf{E} = [\mathbf{t}]_\times \mathbf{R}$$
+
+$[\mathbf{t}]_\times$ = Antisymmetrische Matrix von $\mathbf{t}$
+$\mathbf{R}$ = Rotationsmatrix
+
+```python
+E, maske = cv2.findEssentialMat(
+    inlier1, inlier2, K,
+    method=cv2.RANSAC
+)
+```
+:::
+:::
+
+---
+
+## Schritt 4: Pose Recovery (R und t)
+
+**Aus der Essential Matrix die Kamerabewegung extrahieren:**
+
+**SVD-Zerlegung** der Essential Matrix:
+
+$$\mathbf{E} = \mathbf{U} \mathbf{\Sigma} \mathbf{V}^T$$
+
+::: {.columns}
+::: {.column width="55%"}
+Daraus ergeben sich **4 mögliche Lösungen** für $(R, t)$:
+- $R_1 = U W V^T$, $t = +U_3$
+- $R_1 = U W V^T$, $t = -U_3$
+- $R_2 = U W^T V^T$, $t = +U_3$
+- $R_2 = U W^T V^T$, $t = -U_3$
+
+**Auflösung:** Nur eine Lösung hat alle 3D-Punkte **vor** beiden Kameras.
+:::
+::: {.column width="45%"}
+```python
+# OpenCV wählt automatisch die
+# geometrisch korrekte Lösung
+inlier_count, R, t, maske = \
+    cv2.recoverPose(E, p1, p2, K)
+
+# Euler-Winkel berechnen
+nicken  = atan2(R[2,1], R[2,2])
+gieren  = atan2(-R[2,0], sy)
+rollen  = atan2(R[1,0], R[0,0])
+```
+:::
+:::
+
+---
+
+## Pose Recovery — Ergebnis
+
+**Bewegung zwischen Frame 0 und Frame 1 auf unserem Datensatz:**
+
+```python
+Rotation (Euler-Winkel):
+  Nicken  (Pitch): -0.8°
+  Gieren  (Yaw):   2.1°
+  Rollen  (Roll):  0.3°
+
+Translation (normiert):
+  X: -0.796  (Bewegung nach links)
+  Y: +0.027  (kaum vertikale Bewegung)
+  Z: -0.605  (Bewegung nach vorne)
+```
+
+::: {.callout-warning}
+**Skalenproblem (monokulare Kamera):** Der Translationsvektor $t$ hat keine absolute Einheit —
+nur die **Richtung** ist bekannt, nicht die Länge. Das ist eine fundamentale Einschränkung
+monokularer Systeme. ORB-SLAM3 löst dies durch Stereo-Kameras oder RGB-D-Sensoren.
+:::
+
+---
+
+## Trajektorie über mehrere Frames
+
+**Akkumulation der Kamerabewegung:**
+
+$$\mathbf{pos}_{t+1} = \mathbf{pos}_t + \mathbf{R}_{gesamt} \cdot \mathbf{t}_t$$
+$$\mathbf{R}_{gesamt,\,t+1} = \mathbf{R}_t \cdot \mathbf{R}_{gesamt,\,t}$$
+
+```python
+# Trajektorie über 50 Frames berechnen
+position = np.zeros(3)
+rotation_gesamt = np.eye(3)
+trajektorie = [position.copy()]
+
+for i in range(49):
+    # Für jedes Frame-Paar: ORB → Matching → RANSAC → E → R, t
+    _, R, t, _ = cv2.recoverPose(E, p1, p2, K)
+    position += rotation_gesamt @ t.flatten()
+    rotation_gesamt = R @ rotation_gesamt
+    trajektorie.append(position.copy())
+```
+
+::: {.fragment}
+**Ergebnis:** Bird's-eye view (X-Z Ebene) zeigt die geschätzte Kamerabahn —
+sichtbarer Drift über Zeit (typisch für monokulare VO ohne Loop Closure).
+:::
+
+---
+
+## Grenzen der Visuellen Odometrie
+
+::: {.columns}
+::: {.column width="50%"}
+**Technische Grenzen:**
+
+- **Skalenmehrdeutigkeit** — monokulare Kamera hat keine absolute Maßskala
+- **Drift** — Fehler akkumulieren sich über Zeit
+- **Schnelle Bewegungen** — Feature Matching versagt bei Bewegungsunschärfe
+- **Texturarme Umgebungen** — wenige Features detektierbar (weiße Wände)
+- **Beleuchtungswechsel** — Deskriptoren instabil bei starken Änderungen
+:::
+::: {.column width="50%"}
+**Wie ORB-SLAM3 diese löst:**
+
+| Problem | Lösung |
+|:---|:---|
+| Drift | Loop Closure Detection |
+| Skala | Stereo / RGB-D Kamera |
+| Schnelle Bewegung | IMU Integration |
+| Wenige Features | Adaptive Threshold |
+| Beleuchtung | ORB Robustheit |
+:::
+:::
+
+---
+
+## VO in ORB-SLAM3 — Einordnung
+
+```{mermaid}
+flowchart LR
+    subgraph Tracking ["Tracking 1.1 + 1.2"]
+        A[Feature\nExtraction] --> B[Visuelle\nOdometrie]
+        B --> C[Keyframe\nEntscheidung]
+    end
+    subgraph LocalMap ["Local Mapping 2.x"]
+        D[3D\nTriangulation] --> E[Bundle\nAdjustment]
+    end
+    subgraph LoopClose ["Loop Closure 3.x"]
+        F[BoW\nErkennung] --> G[Pose\nGraph Opt.]
+    end
+    C --> D
+    E --> F
+    G -->|Drift-Korrektur| B
+
+    style Tracking fill:#1d3557,color:#fff
+    style LocalMap fill:#2d6a4f,color:#888
+    style LoopClose fill:#52b788,color:#888
+```
+
+::: {.callout-tip}
+**Unsere Aufgabe (1.1 + 1.2)** ist das Herzstück von ORB-SLAM3 — ohne zuverlässige
+Feature Extraction und Visuelle Odometrie funktioniert der gesamte SLAM-Algorithmus nicht.
+:::
+
+---
+
+# Zusammenfassung {background-color="#1a1a2e"}
+
+## Kernkonzepte auf einen Blick
+
+| Methode | Zweck | Ergebnis |
+|:---|:---|:---|
+| Graustufen + Gauss | Vorverarbeitung | Rauschfreies Graustufenbild |
+| FAST Detektor | Ecken finden | Liste von Keypoint-Positionen |
+| ORB Deskriptor | Features beschreiben | 256-Bit Binärvektor pro Keypoint |
+| BF-Matcher + Lowe | Korrespondenzen finden | Gefilterte Match-Liste |
+| RANSAC | Ausreißer entfernen | Geometrisch konsistente Inlier |
+| Essential Matrix | Geometrie modellieren | $\mathbf{E} = [\mathbf{t}]_\times \mathbf{R}$ |
+| Pose Recovery | Bewegung extrahieren | Rotation $R$, Translation $t$ |
+| Trajektorie | Pfad akkumulieren | Kamerabahn im 3D-Raum |
+
+---
+
+## Ausblick
+
+**Was kommt als nächstes in ORB-SLAM3?**
+
+::: {.incremental}
+- **2.1 Local Mapping** — Gefundene 2D-Korrespondenzen werden zu 3D-Punkten trianguliert
+- **2.2 Local Bundle Adjustment** — Optimierung der Kameraposen über mehrere Keyframes gleichzeitig
+- **3.1 Loop Closure Detection** — Erkennung von bereits besuchten Orten mittels Bag-of-Words
+- **3.2 Global Optimization** — Drift-Korrektur durch Pose Graph Optimization
+:::
+
+::: {.fragment}
+**Gemeinsamkeit aller Schritte:** ORB-Features, die **wir** in 1.1 extrahiert haben, werden
+in der gesamten Pipeline weiterverwendet — von Tracking bis Loop Closure.
+:::
+
+---
+
+## Lernzielabfrage — Frage 1
+
+**Was misst der Lowe's Ratio Test?**
+
+::: {.fragment}
+A) Die absolute Hamming-Distanz zwischen zwei Deskriptoren
+:::
+::: {.fragment}
+B) Das **Verhältnis** der Distanz zum besten und zweitbesten Match — filtert ambige Zuordnungen
+:::
+::: {.fragment}
+C) Die Anzahl der gefundenen Keypoints
+:::
+::: {.fragment}
+✅ **Antwort: B** — $\frac{d_1}{d_2} < 0.75$ bedeutet, der beste Match ist deutlich besser
+als der zweitbeste, daher eindeutig.
+:::
+
+---
+
+## Lernzielabfrage — Frage 2
+
+**Warum hat eine monokulare Kamera keine absolute Maßskala?**
+
+::: {.fragment}
+A) Weil ORB-Features nicht genau genug sind
+:::
+::: {.fragment}
+B) Weil RANSAC zu viele Inlier verwirft
+:::
+::: {.fragment}
+C) Weil ein einzelnes Kamerabild **keine Tiefeninformation** enthält —
+ein Objekt 1 m entfernt sieht geometrisch genauso aus wie dasselbe Objekt 2 m entfernt,
+nur skaliert. Ohne bekannten Referenzabstand ist die absolute Skala unbestimmbar.
+:::
+::: {.fragment}
+✅ **Antwort: C** — Das Skalenproblem ist fundamental für monokulare Systeme.
+ORB-SLAM3 löst es durch Stereo-Baseline oder RGB-D Tiefensensor.
+:::
+
+---
+
+## Vielen Dank! {.center}
+
+**Feature Extraction & Visuelle Odometrie — ORB-SLAM3**
+
+::: {.columns}
+::: {.column width="50%"}
+**Quellen:**
+- Rublee et al. (2011): *ORB: An efficient alternative to SIFT or SURF*
+- Rosten & Drummond (2006): *Machine learning for high-speed corner detection*
+- Lowe (2004): *Distinctive image features from scale-invariant keypoints*
+- Campos et al. (2021): *ORB-SLAM3: An Accurate Open-Source Library*
+- TUM RGB-D Benchmark Dataset
+:::
+::: {.column width="50%"}
+**Code & Demo:**
+- `feature_extraction.ipynb` — Feature Extraction Pipeline
+- `visuelle_odometrie.ipynb` — VO Pipeline mit Trajektorie
+
+**Fragen?**
+:::
+:::

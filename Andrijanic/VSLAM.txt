@@ -1,0 +1,5 @@
+# https://www.youtube.com/watch?v=XP5N4lj7yq0&list=PLENZR8id1crgCG9Dmr0uKE5mz5eE8S_0-
+1.) KEyframe estimanton -> Binucular deoth estimation
+2.) Localisation at keyframe -> 3d - 2d Pnp 
+
+1.) 
