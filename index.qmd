@@ -7,6 +7,100 @@ format:
 jupyter: python3
 bibliography: references.bib
 ---
+
+```{=html}
+<!-- =====================================================================
+     SLIDE-MECHANISMUS – einmal pro Seite. Erzeugt Slider für jedes
+     <div class="vslam-slider"> ... </div> weiter unten im Dokument.
+     ===================================================================== -->
+<style>
+  .vslam-slider {
+    position: relative;
+    border: 1px solid #e3e3e3;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem 3.5rem 1.5rem;
+    margin: 1.5rem 0 2rem 0;
+    background: #fafafa;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    overflow: hidden;
+  }
+  .vslam-slider .vslam-slides { position: relative; min-height: 340px; }
+  .vslam-slider .vslam-slide { display: none; animation: vslamFade .35s ease; }
+  .vslam-slider .vslam-slide.active { display: block; }
+  @keyframes vslamFade {
+    from { opacity: 0; transform: translateX(8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .vslam-slider .vslam-slide h4 {
+    margin-top: 0;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: .35rem;
+  }
+  .vslam-slider .vslam-slide figure { margin: 0.5rem 0; }
+  .vslam-slider .vslam-slide img { max-width: 100%; height: auto; }
+  .vslam-slider .vslam-controls {
+    position: absolute;
+    bottom: .75rem; left: 1.5rem; right: 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem;
+  }
+  .vslam-slider .vslam-btn {
+    background: #2c3e50; color: #fff; border: none;
+    border-radius: 6px; padding: .35rem .9rem;
+    cursor: pointer; font-size: .9rem;
+  }
+  .vslam-slider .vslam-btn:disabled { background: #b0b8c1; cursor: not-allowed; }
+  .vslam-slider .vslam-dots { display: flex; gap: .4rem; }
+  .vslam-slider .vslam-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #cfd6dd; cursor: pointer; transition: background .2s;
+  }
+  .vslam-slider .vslam-dot.active { background: #3498db; }
+  .vslam-slider .vslam-counter { font-size: .85rem; color: #6c757d; }
+</style>
+
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.vslam-slider').forEach(slider => {
+      const slides = slider.querySelectorAll('.vslam-slide');
+      if (!slides.length) return;
+      const dotsWrap = slider.querySelector('.vslam-dots');
+      slides.forEach((_, i) => {
+        const d = document.createElement('span');
+        d.className = 'vslam-dot' + (i === 0 ? ' active' : '');
+        d.addEventListener('click', () => go(i));
+        dotsWrap.appendChild(d);
+      });
+      const dots = dotsWrap.querySelectorAll('.vslam-dot');
+      const prev = slider.querySelector('.vslam-prev');
+      const next = slider.querySelector('.vslam-next');
+      const counter = slider.querySelector('.vslam-counter');
+      let idx = 0;
+      function go(i) {
+        slides[idx].classList.remove('active');
+        dots[idx].classList.remove('active');
+        idx = (i + slides.length) % slides.length;
+        slides[idx].classList.add('active');
+        dots[idx].classList.add('active');
+        counter.textContent = `Slide ${idx + 1} / ${slides.length}`;
+        prev.disabled = idx === 0;
+        next.disabled = idx === slides.length - 1;
+        if (window.MathJax && MathJax.typesetPromise) {
+          MathJax.typesetPromise([slides[idx]]);
+        }
+      }
+      prev.addEventListener('click', () => go(idx - 1));
+      next.addEventListener('click', () => go(idx + 1));
+      slides[0].classList.add('active');
+      counter.textContent = `Slide 1 / ${slides.length}`;
+      prev.disabled = true;
+      if (slides.length === 1) next.disabled = true;
+    });
+  });
+</script>
+```
+
 ### vSLAM Ergebnis (TUM Dataset)
 
 <video width="100%" controls>
@@ -16,7 +110,7 @@ bibliography: references.bib
 
 ---
 title: "3D Punktwolken Visualisierung"
-format: 
+format:
   html:
     page-layout: full
     self-contained: true
@@ -54,14 +148,14 @@ def parse_keyframe(file_path):
             [2*x*y+2*z*w,   1-2*x**2-2*z**2, 2*y*z-2*x*w],
             [2*x*z-2*y*w,   2*y*z+2*x*w,   1-2*x**2-2*y**2]
         ])
-    
+
     R = q_to_R([qx, qy, qz, qw])
 
     # 3. Punktwolken-Daten parsen
     # Wir suchen den Block nach 'Point Cloud Data'
     data_part = content.split('Point Cloud Data :')[1].strip()
     lines = [l for l in data_part.split('\n') if l and not l.startswith('#')]
-    
+
     points_3d = []
     colors = []
 
@@ -71,22 +165,22 @@ def parse_keyframe(file_path):
             # Koordinaten
             coords = list(map(float, lines[i].split(',')))
             u, v, idepth = coords[0], coords[1], coords[2]
-            
+
             # Farbe (wir nehmen den Durchschnitt der 8 Grauwerte)
             color_vals = list(map(int, lines[i+1].strip(',').split(',')))
             avg_color = sum(color_vals) / len(color_vals)
 
             if idepth <= 0: continue
-            
+
             # Rückprojektion von Pixel zu 3D (Kamera-Koordinaten)
             depth = 1.0 / idepth
             z_c = depth
             x_c = (u - cx) * depth / fx
             y_c = (v - cy) * depth / fy
-            
+
             # Transformation in Welt-Koordinaten
             P_w = R @ np.array([x_c, y_c, z_c]) + t
-            
+
             points_3d.append(P_w)
             colors.append(avg_color)
         except:
@@ -113,10 +207,10 @@ if all_points:
     distances = np.linalg.norm(pts_concat - center, axis=1)
 
     # Wir behalten nur Punkte, die innerhalb einer Standardabweichung liegen
-    # Du kannst den Faktor (hier 2.0) anpassen: 
+    # Du kannst den Faktor (hier 2.0) anpassen:
     # Kleiner (z.B. 1.0) = strenger, Größer (z.B. 3.0) = mehr Punkte bleiben
     upper_limit = np.percentile(distances, 95) # Behalte die 95% "zentralsten" Punkte
-    
+
     mask = distances < upper_limit
     pts_concat = pts_concat[mask]
     cols_concat = cols_concat[mask]
@@ -154,21 +248,21 @@ else:
 
 # vSLAM – Use Cases und grundlegende Funktionsweise
 vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
-kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie 
+kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie
 Indoor-Navigation (z.B. Saugroboter).
 
 Anwendungsbereiche im Detail:
 
-- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und 
+- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und
   Erstellung von Karten unbekannter Umgebungen/ Räume.
 
 - Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
   und virtuelle Objekte exakt in die reale Welt einzubetten.
-   
-- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung 
+
+- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung
   (Spurhalteassistent etc.).
 
-- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in 
+- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in
   Logistikzentren oder für Roboter in Lagerhallen.
 
 
@@ -182,12 +276,27 @@ Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile auf
 
 - Loop Closure und globale Optimierung
 
+Jeder der sechs Workflow-Steps wird im Folgenden als **Slideshow** dargestellt:
+Pro Step kannst du dich durch Konzept, Visualisierung und mathematischen/technischen
+Details navigieren.
+
 
 ## 1.1 Feature Extraction
+
+::: {.vslam-slider}
+
+::: {.vslam-slides}
+
+::: {.vslam-slide}
+#### Konzept
 Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR).
-Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten 
-extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte 
+Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten
+extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte
 Punktewolke, die auf der realen Umgebung liegt.
+:::
+
+::: {.vslam-slide}
+#### Visualisierung – vSLAM vs. klassisches SLAM
 
 ```{=html}
 <div style="text-align: center;">
@@ -195,18 +304,59 @@ Punktewolke, die auf der realen Umgebung liegt.
   <figcaption>Oben: visual SLAM, Unten: normales SLAM</figcaption>
 </div>
 ```
+:::
 
-TBD: inhaltliche/ technische Tiefe erweitern
+::: {.vslam-slide}
+#### Mathematik – Harris Corner Detection
+Klassischer Detektor für Ecken: lokale Intensitätsänderungen werden über die
+Strukturmatrix $M$ in einem Fenster $W$ aufsummiert:
+
+$$
+M = \sum_{(u,v) \in W} w(u,v)
+\begin{bmatrix} I_x^2 & I_x I_y \\ I_x I_y & I_y^2 \end{bmatrix}
+$$
+
+Der Corner-Response-Wert $R = \det(M) - k \cdot \text{tr}(M)^2$ ist groß, wenn beide
+Eigenwerte von $M$ groß sind – also in beide Richtungen Intensitätsänderungen vorliegen (Ecke).
+
+*TBD: ORB / SIFT als modernere Alternativen ergänzen.*
+:::
+
+:::
+
+::: {.vslam-controls}
+<button class="vslam-btn vslam-prev">← Zurück</button>
+<div class="vslam-dots"></div>
+<span class="vslam-counter">Slide 1 / 3</span>
+<button class="vslam-btn vslam-next">Weiter →</button>
+:::
+
+:::
+
 
 ## 1.2 Visuelle Odometrie
+
+::: {.vslam-slider}
+
+::: {.vslam-slides}
+
+::: {.vslam-slide}
+#### Konzept
 Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum)
 basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern
-des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen
-voraus (Frame to Frame) und nennt sich 'Feature Matching'. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der 
+des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben.
+:::
+
+::: {.vslam-slide}
+#### Feature Matching (Frame-to-Frame)
+Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen
+voraus (Frame to Frame) und nennt sich 'Feature Matching'. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der
 Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann
 über Stereo-Kameras erreicht werden.
+:::
 
-TBD: inhaltliche/ technische Tiefe erweitern
+::: {.vslam-slide}
+#### Visualisierung – Kamerabewegung in Echtzeit
 
 ```{=html}
 <div style="text-align: center;">
@@ -214,13 +364,64 @@ TBD: inhaltliche/ technische Tiefe erweitern
   <figcaption>Kamerabewegung mit visueller Odometrie in Echtzeit</figcaption>
 </div>
 ```
-Exkurs: Alternative Ansätze zur Bewegungsbestimmung einer Kamera mittels VIO (Visual Inertial Odometry)
-TBD
+:::
+
+::: {.vslam-slide}
+#### Mathematik – Essential Matrix & Pose Estimation
+Die Essential Matrix beschreibt die Epipolargeometrie zwischen zwei Frames:
+
+$$E = [t]_\times R$$
+
+Mit:
+
+- $t$ – Translationsvektor (Kamerabewegung)
+- $R$ – Rotationsmatrix (Drehung)
+- $[t]_\times$ – schiefsymmetrische Matrix von $t$
+
+Aus korrespondierenden Punkten $x, x'$ in den beiden Bildern gilt:
+$$x'^T \, E \, x = 0$$
+
+RANSAC entfernt vor der Schätzung von $E$ Outliers (falsche Matches).
+
+*TBD: Triangulation für initiale 3D-Tiefe ergänzen.*
+:::
+
+::: {.vslam-slide}
+#### Exkurs – Visual Inertial Odometry (VIO)
+Alternative Ansätze zur Bewegungsbestimmung einer Kamera fusionieren visuelle
+Informationen mit Inertialsensoren (IMU): Beschleunigung und Drehrate ergänzen
+die optische Schätzung gerade bei schnellen Bewegungen oder texturarmen Szenen.
+
+*TBD: Sensor-Fusion / Kalman-Filter / Tightly-vs.-Loosely-Coupled.*
+:::
+
+:::
+
+::: {.vslam-controls}
+<button class="vslam-btn vslam-prev">← Zurück</button>
+<div class="vslam-dots"></div>
+<span class="vslam-counter">Slide 1 / 5</span>
+<button class="vslam-btn vslam-next">Weiter →</button>
+:::
+
+:::
+
 
 ## 2.1 Lokales Mapping
+
+::: {.vslam-slider}
+
+::: {.vslam-slides}
+
+::: {.vslam-slide}
+#### Problemstellung
 Das lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik:
-Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem 
-Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen. 
+Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem
+Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.
+:::
+
+::: {.vslam-slide}
+#### Visualisierung – Mapping eines Frames
 
 ```{=html}
 <div style="text-align: center;">
@@ -228,15 +429,53 @@ Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korr
   <figcaption>Mapping Prozess eines Frames in Action</figcaption>
 </div>
 ```
+:::
 
-TBD: Prinzip des Mappings + detaillierte Erklärung
+::: {.vslam-slide}
+#### Mathematik – Triangulation
+Sobald Rotation $R$ und Translation $t$ aus der Pose Estimation bekannt sind, lässt sich
+die Tiefe $Z$ eines Punktes durch Triangulation berechnen. Für korrespondierende
+Bildpunkte $x_1, x_2$ aus zwei Kamerapositionen mit Projektionsmatrizen $P_1, P_2$ gilt:
+
+$$
+x_i \times (P_i \, X) = 0
+$$
+
+Das resultierende lineare Gleichungssystem (DLT) liefert die 3D-Position $X$ des Punktes
+in Weltkoordinaten.
+
+*TBD: Reprojection-Error, Triangulationsfehler bei schmalem Baseline.*
+:::
+
+:::
+
+::: {.vslam-controls}
+<button class="vslam-btn vslam-prev">← Zurück</button>
+<div class="vslam-dots"></div>
+<span class="vslam-counter">Slide 1 / 3</span>
+<button class="vslam-btn vslam-next">Weiter →</button>
+:::
+
+:::
+
 
 ## 2.2 Lokale Optimierung
-Nach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch
-mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist 
-nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. 
-Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen 
-einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer 
+
+::: {.vslam-slider}
+
+::: {.vslam-slides}
+
+::: {.vslam-slide}
+#### Konzept
+Nach abgeschlossenem lokalem Mapping enthält der Output theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch
+mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist
+nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten.
+:::
+
+::: {.vslam-slide}
+#### Konvisibilitätsgraph
+Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Knoten im Graphen
+einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer
 Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph
 ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.
 
@@ -246,25 +485,154 @@ ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.
   <figcaption>Beispiel eines Konvisibilitätsgraphen</figcaption>
 </div>
 ```
+:::
 
-## 3.1 Loop Closure 
+::: {.vslam-slide}
+#### Mathematik – Bundle Adjustment
+Lokale Optimierung minimiert den Reprojektionsfehler über alle Keyframe-Posen $T_i$ und
+3D-Punkte $X_j$, die im Konvisibilitätsgraphen verbunden sind:
 
-TBD: Mathematisches Prinzip +  visuelle Veranschaulichung 
+$$
+\min_{T_i,\, X_j} \;\; \sum_{i,j} \rho \!\left( \big\| x_{ij} - \pi(T_i,\, X_j) \big\|^2 \right)
+$$
+
+Mit:
+
+- $\pi(\cdot)$ – Projektionsfunktion (3D-Punkt → Bildpixel)
+- $x_{ij}$ – beobachtete Pixelposition von Punkt $j$ in Frame $i$
+- $\rho(\cdot)$ – robuste Loss-Funktion (z.B. Huber) gegen Outlier
+
+Gelöst wird das nichtlineare Least-Squares-Problem typischerweise mit Levenberg-Marquardt.
+
+*TBD: Schwarzes-Loch-Strategie / Marginalisierung älterer Keyframes.*
+:::
+
+:::
+
+::: {.vslam-controls}
+<button class="vslam-btn vslam-prev">← Zurück</button>
+<div class="vslam-dots"></div>
+<span class="vslam-counter">Slide 1 / 3</span>
+<button class="vslam-btn vslam-next">Weiter →</button>
+:::
+
+:::
+
+
+## 3.1 Loop Closure
+
+::: {.vslam-slider}
+
+::: {.vslam-slides}
+
+::: {.vslam-slide}
+#### Konzept
+Loop Closure erkennt, wenn die Kamera an einen bereits zuvor besuchten Ort zurückkehrt.
+Diese Wiedererkennung erlaubt es, akkumulierte Drift-Fehler entlang der gesamten
+Trajektorie zu korrigieren – ein wesentlicher Vorteil gegenüber reiner visueller Odometrie.
+
+*TBD: Visualisierung / Beispielbild Loop Closure einfügen.*
+:::
+
+::: {.vslam-slide}
+#### Place Recognition – Bag of Visual Words
+Aus extrahierten Deskriptoren (ORB, SIFT, …) wird ein Vokabular $V = \{w_1, \dots, w_K\}$
+visueller Wörter erstellt (k-means Clustering). Jeder Frame wird dann als BoW-Vektor
+$v \in \mathbb{R}^K$ repräsentiert.
+
+Ähnlichkeit zweier Frames:
+
+$$
+s(v_a, v_b) = 1 - \tfrac{1}{2}\, \bigg\| \tfrac{v_a}{\|v_a\|_1} - \tfrac{v_b}{\|v_b\|_1} \bigg\|_1
+$$
+
+Übersteigt $s$ einen Schwellwert, wird ein **Loop Candidate** geprüft (geometrische Verifikation
+via PnP/Essential Matrix).
+:::
+
+::: {.vslam-slide}
+#### Mathematik – Drift-Korrektur über Pose-Graph
+Ein erkannter Loop liefert eine zusätzliche Kante $T_{ij}^{loop}$ zwischen zwei weit
+auseinanderliegenden Keyframes. Diese Constraint geht in die globale Optimierung
+(siehe Step 3.2) ein und "schließt" den Drift.
+
+*TBD: Beispiel mit Drift-vorher/-nachher Darstellung.*
+:::
+
+:::
+
+::: {.vslam-controls}
+<button class="vslam-btn vslam-prev">← Zurück</button>
+<div class="vslam-dots"></div>
+<span class="vslam-counter">Slide 1 / 3</span>
+<button class="vslam-btn vslam-next">Weiter →</button>
+:::
+
+:::
+
 
 ## 3.2 Globale Optimierung
 
-TBD
+::: {.vslam-slider}
+
+::: {.vslam-slides}
+
+::: {.vslam-slide}
+#### Konzept
+Im Gegensatz zur lokalen Optimierung (nur Nachbarschaft im Konvisibilitätsgraph) korrigiert
+die globale Optimierung **alle** Keyframe-Posen gleichzeitig – insbesondere nachdem ein
+Loop Closure erkannt wurde.
+:::
+
+::: {.vslam-slide}
+#### Mathematik – Pose-Graph Optimization
+Repräsentiert wird die Trajektorie als Graph mit Posen $T_i \in SE(3)$ als Knoten und
+relativen Messungen $\tilde{T}_{ij}$ als Kanten. Optimierungsziel:
+
+$$
+\min_{T_1, \dots, T_n} \;\; \sum_{(i,j) \in \mathcal{E}}
+\big\| \log\!\left( \tilde{T}_{ij}^{-1} \, T_i^{-1} \, T_j \right)^{\vee} \big\|_{\Sigma_{ij}}^2
+$$
+
+Mit:
+
+- $\log(\cdot)^{\vee}$ – Logarithmus-Map auf $SE(3)$ (liefert $\mathfrak{se}(3)$-Element)
+- $\Sigma_{ij}$ – Informationsmatrix der Messung
+- $\mathcal{E}$ – Kantenmenge inkl. Loop-Closure-Kanten
+
+Gelöst i.d.R. mit g2o oder Ceres.
+:::
+
+::: {.vslam-slide}
+#### Globales Bundle Adjustment (optional)
+Nach dem Pose-Graph-Schritt kann ein finales **Full Bundle Adjustment** über alle Posen
+und Punkte erfolgen – analog zur lokalen Optimierung in Step 2.2, aber über die gesamte Map.
+
+*TBD: Laufzeit-Trade-off zwischen Pose-Graph und Full-BA.*
+:::
+
+:::
+
+::: {.vslam-controls}
+<button class="vslam-btn vslam-prev">← Zurück</button>
+<div class="vslam-dots"></div>
+<span class="vslam-counter">Slide 1 / 3</span>
+<button class="vslam-btn vslam-next">Weiter →</button>
+:::
+
+:::
+
 
 ## Visualisierung der vSLAM Pipeline
 
 TBD: Veranschaulichung der oben erklärten Theorie: etwa Visualisierung durch Slideshow in der jeder Slide
-einem Step des Workflows entspricht. Ideen: 
+einem Step des Workflows entspricht. Ideen:
 
 - Entstehung der Punktewolke interaktiv einbetten
 
 - Mapping und Optimierungsschritte bildlich darstellen
 
-- Mappen deines Gebäudes mittels OS vSLAM Anwendungen 
+- Mappen deines Gebäudes mittels OS vSLAM Anwendungen
 
 - Vergleich von günstigen/ ungünstigen Umgebungen für die vSLAM Technologie bezogen auf Texturen, Objekte, Gradienten im Bild
 
@@ -296,7 +664,7 @@ import matplotlib.pyplot as plt
 r = np.arange(0, 2, 0.01)
 theta = 2 * np.pi * r
 fig, ax = plt.subplots(
-  subplot_kw = {'projection': 'polar'} 
+  subplot_kw = {'projection': 'polar'}
 )
 ax.plot(theta, r)
 ax.set_rticks([0.5, 1, 1.5, 2])
@@ -330,7 +698,7 @@ You can include complex math like $$E = mc^2$$ and immediately follow it with an
             camera.attachControl(canvas, true);
 
             const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            
+
             const box = BABYLON.MeshBuilder.CreateBox("box", {size: 1.5}, scene);
             const material = new BABYLON.StandardMaterial("mat", scene);
             material.diffuseColor = new BABYLON.Color3(0.1, 0.4, 0.8);
