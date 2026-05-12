@@ -131,7 +131,15 @@ Anwendungsbereiche im Detail:
 
 
 ### Karte nach Abschluss des Mappings
-
+---
+title:
+format:
+  html:
+    page-layout: full
+    self-contained: true
+execute:
+  echo: false
+---
 ```{python}
 import numpy as np
 import plotly.graph_objects as go
