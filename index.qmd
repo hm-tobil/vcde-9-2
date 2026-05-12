@@ -101,26 +101,6 @@ bibliography: references.bib
 </script>
 ```
 
-# vSLAM – Use Cases und grundlegende Funktionsweise
-vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
-kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie
-Indoor-Navigation (z.B. Saugroboter).
-
-Anwendungsbereiche im Detail:
-
-- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und
-  Erstellung von Karten unbekannter Umgebungen/ Räume.
-
-- Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
-  und virtuelle Objekte exakt in die reale Welt einzubetten.
-
-- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung
-  (Spurhalteassistent etc.).
-
-- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in
-  Logistikzentren oder für Roboter in Lagerhallen.
-
-
 ### vSLAM Workflow (TUM Dataset)
 ### Source
 
@@ -129,18 +109,11 @@ Anwendungsbereiche im Detail:
   Dein Browser unterstützt keine Videos.
 </video>
 
-
 ### Karte nach Abschluss des Mappings
----
-title:
-format:
-  html:
-    page-layout: full
-    self-contained: true
-execute:
-  echo: false
----
+
 ```{python}
+#| echo: false
+#| output: true
 import numpy as np
 import plotly.graph_objects as go
 import glob
@@ -265,6 +238,26 @@ if all_points:
 else:
     print("Keine Daten gefunden.")
 ```
+
+# vSLAM – Use Cases und grundlegende Funktionsweise
+vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
+kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie
+Indoor-Navigation (z.B. Saugroboter).
+
+Anwendungsbereiche im Detail:
+
+- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und
+  Erstellung von Karten unbekannter Umgebungen/ Räume.
+
+- Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
+  und virtuelle Objekte exakt in die reale Welt einzubetten.
+
+- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung
+  (Spurhalteassistent etc.).
+
+- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in
+  Logistikzentren oder für Roboter in Lagerhallen.
+
 
 # Zentrale Komponenten des VSLAM Algorithmus
 
@@ -670,4 +663,51 @@ ax.plot(theta, r)
 ax.set_rticks([0.5, 1, 1.5, 2])
 ax.grid(True)
 plt.show()
+```
+
+## Methodology
+You can include complex math like $$E = mc^2$$ and immediately follow it with an interactive 3D figure to visualize your results.
+
+```{=html}
+
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+
+<div style="width: 100%; height: 400px; position: relative; margin: 20px 0;">
+    <canvas id="renderCanvas" style="width: 100%; height: 100%; touch-action: none; border: 1px solid #ddd; display: block; border-radius: 8px;"></canvas>
+</div>
+
+<script>
+    window.addEventListener('DOMContentLoaded', function() {
+        const canvas = document.getElementById("renderCanvas");
+        if (!canvas) return;
+
+        const engine = new BABYLON.Engine(canvas, true);
+
+        const createScene = function () {
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color3(0.95, 0.95, 0.95);
+
+            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI/4, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene);
+            camera.attachControl(canvas, true);
+
+            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+
+            const box = BABYLON.MeshBuilder.CreateBox("box", {size: 1.5}, scene);
+            const material = new BABYLON.StandardMaterial("mat", scene);
+            material.diffuseColor = new BABYLON.Color3(0.1, 0.4, 0.8);
+            box.material = material;
+
+            scene.registerBeforeRender(function () {
+                box.rotation.y += 0.01;
+                box.rotation.x += 0.005;
+            });
+
+            return scene;
+        };
+
+        const scene = createScene();
+        engine.runRenderLoop(() => scene.render());
+        window.addEventListener("resize", () => engine.resize());
+    });
+</script>
 ```
