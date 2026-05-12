@@ -1,0 +1,10 @@
+# Quarto/Jupyter
+/.quarto/
+**/*.quarto_ipynb
+_site/
+
+# Data & Media
+cam0/
+recording/
+*.png
+*.gif
