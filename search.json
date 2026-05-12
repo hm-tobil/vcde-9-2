@@ -1,5 +1,89 @@
 [
   {
+    "objectID": "index_raw.html",
+    "href": "index_raw.html",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "",
+    "text": "Dein Browser unterstützt keine Videos."
+  },
+  {
+    "objectID": "index_raw.html#interaktive-punktwolke",
+    "href": "index_raw.html#interaktive-punktwolke",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "Interaktive Punktwolke",
+    "text": "Interaktive Punktwolke"
+  },
+  {
+    "objectID": "index_raw.html#feature-extraction",
+    "href": "index_raw.html#feature-extraction",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "1.1 Feature Extraction",
+    "text": "1.1 Feature Extraction\nDas Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.\n\n  \n  Oben: visual SLAM, Unten: normales SLAM\n\nTBD: inhaltliche/ technische Tiefe erweitern"
+  },
+  {
+    "objectID": "index_raw.html#visuelle-odometrie",
+    "href": "index_raw.html#visuelle-odometrie",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "1.2 Visuelle Odometrie",
+    "text": "1.2 Visuelle Odometrie\nVisuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum) basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen voraus (Frame to Frame) und nennt sich ‘Feature Matching’. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann über Stereo-Kameras erreicht werden.\nTBD: inhaltliche/ technische Tiefe erweitern\n\n  \n  Kamerabewegung mit visueller Odometrie in Echtzeit\n\nExkurs: Alternative Ansätze zur Bewegungsbestimmung einer Kamera mittels VIO (Visual Inertial Odometry) TBD"
+  },
+  {
+    "objectID": "index_raw.html#lokales-mapping",
+    "href": "index_raw.html#lokales-mapping",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "2.1 Lokales Mapping",
+    "text": "2.1 Lokales Mapping\nDas lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik: Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.\n\n  \n  Mapping Prozess eines Frames in Action\n\nTBD: Prinzip des Mappings + detaillierte Erklärung"
+  },
+  {
+    "objectID": "index_raw.html#lokale-optimierung",
+    "href": "index_raw.html#lokale-optimierung",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "2.2 Lokale Optimierung",
+    "text": "2.2 Lokale Optimierung\nNach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.\n\n  \n  Beispiel eines Konvisibilitätsgraphen"
+  },
+  {
+    "objectID": "index_raw.html#loop-closure",
+    "href": "index_raw.html#loop-closure",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "3.1 Loop Closure",
+    "text": "3.1 Loop Closure\nTBD: Mathematisches Prinzip + visuelle Veranschaulichung"
+  },
+  {
+    "objectID": "index_raw.html#globale-optimierung",
+    "href": "index_raw.html#globale-optimierung",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "3.2 Globale Optimierung",
+    "text": "3.2 Globale Optimierung\nTBD"
+  },
+  {
+    "objectID": "index_raw.html#visualisierung-der-vslam-pipeline",
+    "href": "index_raw.html#visualisierung-der-vslam-pipeline",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "Visualisierung der vSLAM Pipeline",
+    "text": "Visualisierung der vSLAM Pipeline\nTBD: Veranschaulichung der oben erklärten Theorie: etwa Visualisierung durch Slideshow in der jeder Slide einem Step des Workflows entspricht. Ideen:\n\nEntstehung der Punktewolke interaktiv einbetten\nMapping und Optimierungsschritte bildlich darstellen\nMappen deines Gebäudes mittels OS vSLAM Anwendungen\nVergleich von günstigen/ ungünstigen Umgebungen für die vSLAM Technologie bezogen auf Texturen, Objekte, Gradienten im Bild"
+  },
+  {
+    "objectID": "index_raw.html#die-essential-matrix",
+    "href": "index_raw.html#die-essential-matrix",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "Die Essential Matrix",
+    "text": "Die Essential Matrix\nWenn wir zwei Bilder derselben Szene aus verschiedenen Winkeln haben, beschreibt die Essential Matrix \\(E\\) die geometrische Beziehung zwischen ihnen:\n\\[E = [t]_{\\times} R\\]\nDabei ist: * \\(t\\) der Translationsvektor (Bewegung). * \\(R\\) die Rotationsmatrix (Drehung). * \\([t]_{\\times}\\) die schiefsymmetrische Matrix von \\(t\\)."
+  },
+  {
+    "objectID": "index_raw.html#von-2d-zu-3d-triangulation",
+    "href": "index_raw.html#von-2d-zu-3d-triangulation",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "Von 2D zu 3D (Triangulation)",
+    "text": "Von 2D zu 3D (Triangulation)\nSobald wir die Matrizen kennen, können wir durch Triangulation die Tiefe \\(Z\\) eines Punktes berechnen.\n\n\n\n\n\n\n\n\nFigure 1: Linienplot im polaren Koordinatensystem"
+  },
+  {
+    "objectID": "index_raw.html#methodology",
+    "href": "index_raw.html#methodology",
+    "title": "3D Punktwolken Visualisierung",
+    "section": "Methodology",
+    "text": "Methodology\nYou can include complex math like \\[E = mc^2\\] and immediately follow it with an interactive 3D figure to visualize your results."
+  },
+  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "3D Punktwolken Visualisierung",
@@ -18,42 +102,42 @@
     "href": "index.html#feature-extraction",
     "title": "3D Punktwolken Visualisierung",
     "section": "1.1 Feature Extraction",
-    "text": "1.1 Feature Extraction\nDas Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.\n\n  \n  Oben: visual SLAM, Unten: normales SLAM\n\nTBD: inhaltliche/ technische Tiefe erweitern"
+    "text": "1.1 Feature Extraction\n\n\n\nKonzept\nDas Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR). Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte Punktewolke, die auf der realen Umgebung liegt.\n\n\nVisualisierung – vSLAM vs. klassisches SLAM\n\n  \n  Oben: visual SLAM, Unten: normales SLAM\n\n\n\nMathematik – Harris Corner Detection\nKlassischer Detektor für Ecken: lokale Intensitätsänderungen werden über die Strukturmatrix \\(M\\) in einem Fenster \\(W\\) aufsummiert:\n\\[\nM = \\sum_{(u,v) \\in W} w(u,v)\n\\begin{bmatrix} I_x^2 & I_x I_y \\\\ I_x I_y & I_y^2 \\end{bmatrix}\n\\]\nDer Corner-Response-Wert \\(R = \\det(M) - k \\cdot \\text{tr}(M)^2\\) ist groß, wenn beide Eigenwerte von \\(M\\) groß sind – also in beide Richtungen Intensitätsänderungen vorliegen (Ecke).\nTBD: ORB / SIFT als modernere Alternativen ergänzen.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 3 Weiter →"
   },
   {
     "objectID": "index.html#visuelle-odometrie",
     "href": "index.html#visuelle-odometrie",
     "title": "3D Punktwolken Visualisierung",
     "section": "1.2 Visuelle Odometrie",
-    "text": "1.2 Visuelle Odometrie\nVisuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum) basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben. Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen voraus (Frame to Frame) und nennt sich ‘Feature Matching’. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann über Stereo-Kameras erreicht werden.\nTBD: inhaltliche/ technische Tiefe erweitern\n\n  \n  Kamerabewegung mit visueller Odometrie in Echtzeit\n\nExkurs: Alternative Ansätze zur Bewegungsbestimmung einer Kamera mittels VIO (Visual Inertial Odometry) TBD"
+    "text": "1.2 Visuelle Odometrie\n\n\n\nKonzept\nVisuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum) basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben.\n\n\nFeature Matching (Frame-to-Frame)\nEin solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen voraus (Frame to Frame) und nennt sich ‘Feature Matching’. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann über Stereo-Kameras erreicht werden.\n\n\nVisualisierung – Kamerabewegung in Echtzeit\n\n  \n  Kamerabewegung mit visueller Odometrie in Echtzeit\n\n\n\nMathematik – Essential Matrix & Pose Estimation\nDie Essential Matrix beschreibt die Epipolargeometrie zwischen zwei Frames:\n\\[E = [t]_\\times R\\]\nMit:\n\n\\(t\\) – Translationsvektor (Kamerabewegung)\n\\(R\\) – Rotationsmatrix (Drehung)\n\\([t]_\\times\\) – schiefsymmetrische Matrix von \\(t\\)\n\nAus korrespondierenden Punkten \\(x, x'\\) in den beiden Bildern gilt: \\[x'^T \\, E \\, x = 0\\]\nRANSAC entfernt vor der Schätzung von \\(E\\) Outliers (falsche Matches).\nTBD: Triangulation für initiale 3D-Tiefe ergänzen.\n\n\nExkurs – Visual Inertial Odometry (VIO)\nAlternative Ansätze zur Bewegungsbestimmung einer Kamera fusionieren visuelle Informationen mit Inertialsensoren (IMU): Beschleunigung und Drehrate ergänzen die optische Schätzung gerade bei schnellen Bewegungen oder texturarmen Szenen.\nTBD: Sensor-Fusion / Kalman-Filter / Tightly-vs.-Loosely-Coupled.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 5 Weiter →"
   },
   {
     "objectID": "index.html#lokales-mapping",
     "href": "index.html#lokales-mapping",
     "title": "3D Punktwolken Visualisierung",
     "section": "2.1 Lokales Mapping",
-    "text": "2.1 Lokales Mapping\nDas lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik: Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.\n\n  \n  Mapping Prozess eines Frames in Action\n\nTBD: Prinzip des Mappings + detaillierte Erklärung"
+    "text": "2.1 Lokales Mapping\n\n\n\nProblemstellung\nDas lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik: Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.\n\n\nVisualisierung – Mapping eines Frames\n\n  \n  Mapping Prozess eines Frames in Action\n\n\n\nMathematik – Triangulation\nSobald Rotation \\(R\\) und Translation \\(t\\) aus der Pose Estimation bekannt sind, lässt sich die Tiefe \\(Z\\) eines Punktes durch Triangulation berechnen. Für korrespondierende Bildpunkte \\(x_1, x_2\\) aus zwei Kamerapositionen mit Projektionsmatrizen \\(P_1, P_2\\) gilt:\n\\[\nx_i \\times (P_i \\, X) = 0\n\\]\nDas resultierende lineare Gleichungssystem (DLT) liefert die 3D-Position \\(X\\) des Punktes in Weltkoordinaten.\nTBD: Reprojection-Error, Triangulationsfehler bei schmalem Baseline.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 3 Weiter →"
   },
   {
     "objectID": "index.html#lokale-optimierung",
     "href": "index.html#lokale-optimierung",
     "title": "3D Punktwolken Visualisierung",
     "section": "2.2 Lokale Optimierung",
-    "text": "2.2 Lokale Optimierung\nNach abgeschlossenem lokalem Mapping enthält der Ouput theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten. Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Konten im Graphen einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.\n\n  \n  Beispiel eines Konvisibilitätsgraphen"
+    "text": "2.2 Lokale Optimierung\n\n\n\nKonzept\nNach abgeschlossenem lokalem Mapping enthält der Output theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten.\n\n\nKonvisibilitätsgraph\nUm Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Knoten im Graphen einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.\n\n  \n  Beispiel eines Konvisibilitätsgraphen\n\n\n\nMathematik – Bundle Adjustment\nLokale Optimierung minimiert den Reprojektionsfehler über alle Keyframe-Posen \\(T_i\\) und 3D-Punkte \\(X_j\\), die im Konvisibilitätsgraphen verbunden sind:\n\\[\n\\min_{T_i,\\, X_j} \\;\\; \\sum_{i,j} \\rho \\!\\left( \\big\\| x_{ij} - \\pi(T_i,\\, X_j) \\big\\|^2 \\right)\n\\]\nMit:\n\n\\(\\pi(\\cdot)\\) – Projektionsfunktion (3D-Punkt → Bildpixel)\n\\(x_{ij}\\) – beobachtete Pixelposition von Punkt \\(j\\) in Frame \\(i\\)\n\\(\\rho(\\cdot)\\) – robuste Loss-Funktion (z.B. Huber) gegen Outlier\n\nGelöst wird das nichtlineare Least-Squares-Problem typischerweise mit Levenberg-Marquardt.\nTBD: Schwarzes-Loch-Strategie / Marginalisierung älterer Keyframes.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 3 Weiter →"
   },
   {
     "objectID": "index.html#loop-closure",
     "href": "index.html#loop-closure",
     "title": "3D Punktwolken Visualisierung",
     "section": "3.1 Loop Closure",
-    "text": "3.1 Loop Closure\nTBD: Mathematisches Prinzip + visuelle Veranschaulichung"
+    "text": "3.1 Loop Closure\n\n\n\nKonzept\nLoop Closure erkennt, wenn die Kamera an einen bereits zuvor besuchten Ort zurückkehrt. Diese Wiedererkennung erlaubt es, akkumulierte Drift-Fehler entlang der gesamten Trajektorie zu korrigieren – ein wesentlicher Vorteil gegenüber reiner visueller Odometrie.\nTBD: Visualisierung / Beispielbild Loop Closure einfügen.\n\n\nPlace Recognition – Bag of Visual Words\nAus extrahierten Deskriptoren (ORB, SIFT, …) wird ein Vokabular \\(V = \\{w_1, \\dots, w_K\\}\\) visueller Wörter erstellt (k-means Clustering). Jeder Frame wird dann als BoW-Vektor \\(v \\in \\mathbb{R}^K\\) repräsentiert.\nÄhnlichkeit zweier Frames:\n\\[\ns(v_a, v_b) = 1 - \\tfrac{1}{2}\\, \\bigg\\| \\tfrac{v_a}{\\|v_a\\|_1} - \\tfrac{v_b}{\\|v_b\\|_1} \\bigg\\|_1\n\\]\nÜbersteigt \\(s\\) einen Schwellwert, wird ein Loop Candidate geprüft (geometrische Verifikation via PnP/Essential Matrix).\n\n\nMathematik – Drift-Korrektur über Pose-Graph\nEin erkannter Loop liefert eine zusätzliche Kante \\(T_{ij}^{loop}\\) zwischen zwei weit auseinanderliegenden Keyframes. Diese Constraint geht in die globale Optimierung (siehe Step 3.2) ein und “schließt” den Drift.\nTBD: Beispiel mit Drift-vorher/-nachher Darstellung.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 3 Weiter →"
   },
   {
     "objectID": "index.html#globale-optimierung",
     "href": "index.html#globale-optimierung",
     "title": "3D Punktwolken Visualisierung",
     "section": "3.2 Globale Optimierung",
-    "text": "3.2 Globale Optimierung\nTBD"
+    "text": "3.2 Globale Optimierung\n\n\n\nKonzept\nIm Gegensatz zur lokalen Optimierung (nur Nachbarschaft im Konvisibilitätsgraph) korrigiert die globale Optimierung alle Keyframe-Posen gleichzeitig – insbesondere nachdem ein Loop Closure erkannt wurde.\n\n\nMathematik – Pose-Graph Optimization\nRepräsentiert wird die Trajektorie als Graph mit Posen \\(T_i \\in SE(3)\\) als Knoten und relativen Messungen \\(\\tilde{T}_{ij}\\) als Kanten. Optimierungsziel:\n\\[\n\\min_{T_1, \\dots, T_n} \\;\\; \\sum_{(i,j) \\in \\mathcal{E}}\n\\big\\| \\log\\!\\left( \\tilde{T}_{ij}^{-1} \\, T_i^{-1} \\, T_j \\right)^{\\vee} \\big\\|_{\\Sigma_{ij}}^2\n\\]\nMit:\n\n\\(\\log(\\cdot)^{\\vee}\\) – Logarithmus-Map auf \\(SE(3)\\) (liefert \\(\\mathfrak{se}(3)\\)-Element)\n\\(\\Sigma_{ij}\\) – Informationsmatrix der Messung\n\\(\\mathcal{E}\\) – Kantenmenge inkl. Loop-Closure-Kanten\n\nGelöst i.d.R. mit g2o oder Ceres.\n\n\nGlobales Bundle Adjustment (optional)\nNach dem Pose-Graph-Schritt kann ein finales Full Bundle Adjustment über alle Posen und Punkte erfolgen – analog zur lokalen Optimierung in Step 2.2, aber über die gesamte Map.\nTBD: Laufzeit-Trade-off zwischen Pose-Graph und Full-BA.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 3 Weiter →"
   },
   {
     "objectID": "index.html#visualisierung-der-vslam-pipeline",
