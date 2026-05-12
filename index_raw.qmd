@@ -7,7 +7,7 @@ format:
 jupyter: python3
 bibliography: references.bib
 ---
-### vSLAM Ergebnis (TUM Dataset)
+### vSLAM Workflow: TUM Dataset
 
 <video width="100%" controls>
   <source src="images/recording_2020-12-22_12-04-35_5x.mp4" type="video/mp4">
