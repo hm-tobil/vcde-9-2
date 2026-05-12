@@ -1,0 +1,14 @@
+# Quarto/Jupyter
+/.quarto/
+**/*.quarto_ipynb
+_site/
+
+# Jupyter cell outputs
+cell-*-output-*.png
+**/*output*.png
+
+# Data & Media
+cam0/
+recording/
+*.png
+*.gif
