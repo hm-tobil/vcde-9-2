@@ -409,35 +409,86 @@ die optische Schätzung gerade bei schnellen Bewegungen oder texturarmen Szenen.
 ::: {.vslam-slide}
 #### Problemstellung
 Das lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik:
-Die erstelle Punktewolke eines Frames ist in drei, die extrahierten visuellen Features allerdings nur in zwei Dimensionen (als Pixel auf dem
-Bildschirm) abgebildet. Ziel des Mappings ist es nun, die 2D Features ihren korrespondierenden Positionen im Raum zuzuordnen.
+die extrahierten visuellen Features liegen nur in **zwei Dimensionen** (als Pixel auf dem Bildschirm) vor – wir brauchen aber eine **dreidimensionale** Punktewolke der Szene.
+Ziel des Mappings ist es, die 2D-Features ihren korrespondierenden 3D-Positionen im Raum zuzuordnen und so Schritt für Schritt eine konsistente lokale Karte aufzubauen.
+
+Zwei Beobachtungen aus einer einzelnen Kamera reichen dafür im Prinzip aus – wenn man weiß, wie sich die Kamera dazwischen bewegt hat (aus der visuellen Odometrie, Step 1.2). Drei oder mehr Beobachtungen desselben Punktes machen die Schätzung deutlich robuster.
 :::
 
 ::: {.vslam-slide}
-#### Visualisierung – Mapping eines Frames
+#### Pipeline – vom Feature zum Landmark
+
+```
+Mehrere Keyframes (z.B. 3)
+    → 1. Features extrahieren (ORB)         [aus 1.1]
+    → 2. Tracks aufbauen                    (dasselbe Feature über mehrere Frames hinweg)
+    → 3. Initialposen schätzen              (Essential Matrix + PnP)
+    → 4. Triangulation (DLT)                (2D-Beobachtungen → 3D-Landmark)
+    → 5. Lokale 3D-Karte                    (Landmarks + Kamera-Posen)
+```
+
+**Tracks** sind der zentrale Datenstruktur-Trick: ein Feature, das in Frame 0, 1 und 2 wiedergefunden wird, gehört zu **einem einzigen 3D-Punkt** – einem Landmark.
 
 ```{=html}
 <div style="text-align: center;">
-  <img src="images/vc_anlage_3.png" width="60%">
-  <figcaption>Mapping Prozess eines Frames in Action</figcaption>
+  <img src="images/lokales_mapping/tracks_konzept.png" width="85%">
+  <figcaption>Tracks: dasselbe Feature in mehreren Keyframes wiedergefunden (gleiche Farbe = derselbe Landmark)</figcaption>
 </div>
 ```
 :::
 
 ::: {.vslam-slide}
-#### Mathematik – Triangulation
-Sobald Rotation $R$ und Translation $t$ aus der Pose Estimation bekannt sind, lässt sich
-die Tiefe $Z$ eines Punktes durch Triangulation berechnen. Für korrespondierende
-Bildpunkte $x_1, x_2$ aus zwei Kamerapositionen mit Projektionsmatrizen $P_1, P_2$ gilt:
+#### Mathematik – Triangulation (DLT)
+Sobald Rotation $R_i$ und Translation $t_i$ einer Kamera aus der Pose Estimation bekannt sind, lässt sich
+die 3D-Position $X$ eines Landmarks bestimmen. Für jede Beobachtung $x_i = (u, v)$ in Keyframe $i$ mit Projektionsmatrix $P_i = K\,[R_i \mid t_i]$ gilt:
 
 $$
-x_i \times (P_i \, X) = 0
+x_i \;\sim\; P_i \, X
 $$
 
-Das resultierende lineare Gleichungssystem (DLT) liefert die 3D-Position $X$ des Punktes
-in Weltkoordinaten.
+Über das Kreuzprodukt liefert jede Beobachtung **zwei lineare Bedingungen**:
 
-*TBD: Reprojection-Error, Triangulationsfehler bei schmalem Baseline.*
+$$
+\begin{aligned}
+u \cdot P_i^{(3)}\,X &= P_i^{(1)}\,X \\
+v \cdot P_i^{(3)}\,X &= P_i^{(2)}\,X
+\end{aligned}
+$$
+
+Mit $N$ Beobachtungen entsteht ein $2N \times 4$-Gleichungssystem $A\,X = 0$.
+Die Lösung ist der rechte Singulärvektor von $A$ zum kleinsten Singulärwert – das ist die **Direct Linear Transform (DLT)**.
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/triangulation_schema.png" width="65%">
+  <figcaption>Triangulation: zwei (oder mehr) Sehstrahlen schneiden sich im 3D-Punkt</figcaption>
+</div>
+```
+:::
+
+::: {.vslam-slide}
+#### Beispiel – lokale Karte aus 3 Keyframes unseres Datensatzes
+
+Wir nehmen drei Keyframes aus dem TUM-Datensatz mit einigen Frames Abstand, extrahieren ihre Features, triangulieren die Tracks und erhalten eine **lokale 3D-Punktwolke** zusammen mit den drei Kamera-Positionen.
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/lokale_karte_3kf.png" width="80%">
+  <figcaption>Lokale 3D-Karte: aus 3 Keyframes triangulierte Landmarks (Punkte) und Kamera-Positionen (Dreiecke)</figcaption>
+</div>
+```
+
+Jede Farbe markiert die Punkte, die ein bestimmter Keyframe beigetragen hat – durch die Überlappung entstehen redundante Beobachtungen, die in der Optimierung (Step 2.2) gemeinsam ausgewertet werden.
+:::
+
+::: {.vslam-slide}
+#### Probleme & Caveats
+Reine Triangulation hat zwei bekannte Schwachstellen:
+
+- **Schmale Baseline / Stillstand**: Stehen die Kameras zu nahe beieinander, sind die Sehstrahlen fast parallel und die Tiefe wird extrem unsicher (kleinste Pixel-Fehler werden zu riesigen 3D-Fehlern).
+- **Mono-Skalenmehrdeutigkeit**: Eine einzelne Kamera kann **Maßstab** nicht beobachten. Wir fixieren ihn willkürlich (z.B. $\|t_1\| = 1$), alle weiteren Posen müssen konsistent dazu bestimmt werden (im Notebook: per PnP gegen die existierenden 3D-Punkte).
+
+Beides motiviert direkt den nächsten Schritt – die **lokale Optimierung (Step 2.2)**: alle Posen + Punkte werden gemeinsam so verschoben, dass die gesamten Reprojektionsfehler minimal werden.
 :::
 
 :::
@@ -445,7 +496,7 @@ in Weltkoordinaten.
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 3</span>
+<span class="vslam-counter">Slide 1 / 5</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
@@ -459,18 +510,39 @@ in Weltkoordinaten.
 ::: {.vslam-slides}
 
 ::: {.vslam-slide}
-#### Konzept
-Nach abgeschlossenem lokalem Mapping enthält der Output theoretisch eine lokale Mini-Map jedes einzelnen Frames, was jedoch
-mit signifikanter Fehlerakkumulation einhergeht und die Konsistenz der Karte gefährdet. Ziel der Optimierung ist
-nun die Angleichung aller lokalen Maps, um Frame-to-Frame Konsistenz zu gewährleisten.
+#### Problemstellung
+Nach dem lokalen Mapping haben wir 3D-Landmarks **und** Kamera-Posen – aber beide sind unabhängig voneinander aus paarweisen Schätzungen entstanden. Daraus resultieren systematische Inkonsistenzen:
+
+- Pixel-Rauschen in der Feature-Detektion (∼0.5 px)
+- Ungenaue Kamera-Kalibrierung (geschätztes $K$)
+- Drift bei aufeinanderfolgenden PnP-Schätzungen
+
+Das Ziel der lokalen Optimierung ist es, diese Inkonsistenzen gemeinsam zu glätten und **Frame-to-Frame Konsistenz** über das lokale Fenster zu garantieren. Das Standardverfahren dafür ist **Bundle Adjustment**.
+:::
+
+::: {.vslam-slide}
+#### Reprojektionsfehler – der Optimierungs-Anker
+Der Reprojektionsfehler misst, **wie gut** Pose und 3D-Punkt zusammenpassen. Wenn alles perfekt wäre, würde die Projektion des 3D-Punkts $X_j$ durch Kamera $i$ genau auf der beobachteten Pixel-Position $x_{ij}$ landen:
+
+$$
+r_{ij} \;=\; x_{ij} \;-\; \pi\!\big(K\,(R_i X_j + t_i)\big)
+$$
+
+In der Praxis bleibt immer ein Restfehler – und genau diesen minimiert Bundle Adjustment **simultan** über alle Beobachtungen.
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/reprojektion_schema.png" width="75%">
+  <figcaption>Reprojektionsfehler: Differenz zwischen echtem Pixel (weiß) und zurückprojizierter 3D-Position (rot)</figcaption>
+</div>
+```
 :::
 
 ::: {.vslam-slide}
 #### Konvisibilitätsgraph
-Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten wird ein Konvisibilitätsgraph verwendet, wobei jeder Knoten im Graphen
-einen Frame darstellt. Ist eine Mindestanzahl an übereinstimmenden Feature-Punkten detektiert worden, werden die beiden Frame-Knoten mit einer
-Kante verbunden. In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen zu optimieren: ein Konvisibilitätsgraph
-ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.
+Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten, wird ein Konvisibilitätsgraph verwendet. Jeder Knoten im Graphen stellt einen Frame dar. Sobald eine Mindestanzahl an übereinstimmenden Feature-Punkten zwischen zwei Frames erkannt wird, werden die entsprechenden Knoten mit einer Kante verbunden.
+
+In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen gleichzeitig zu optimieren. Der Konvisibilitätsgraph ermöglicht eine **selektive Optimierung** über die jeweils lokal verbundene Nachbarschaft.
 
 ```{=html}
 <div style="text-align: center;">
@@ -482,22 +554,60 @@ ermöglicht dabei eine selektive Optimierung zur Fehlerminimierung.
 
 ::: {.vslam-slide}
 #### Mathematik – Bundle Adjustment
-Lokale Optimierung minimiert den Reprojektionsfehler über alle Keyframe-Posen $T_i$ und
-3D-Punkte $X_j$, die im Konvisibilitätsgraphen verbunden sind:
+Die lokale Optimierung minimiert den Reprojektionsfehler über alle Keyframe-Posen $T_i = (R_i, t_i)$ und 3D-Punkte $X_j$, die im Konvisibilitätsgraphen verbunden sind:
 
 $$
-\min_{T_i,\, X_j} \;\; \sum_{i,j} \rho \!\left( \big\| x_{ij} - \pi(T_i,\, X_j) \big\|^2 \right)
+\min_{T_i,\, X_j} \;\; \sum_{i,j} \rho \!\left( \big\| x_{ij} - \pi(K\,(R_i X_j + t_i)) \big\|^2 \right)
 $$
 
 Mit:
 
-- $\pi(\cdot)$ – Projektionsfunktion (3D-Punkt → Bildpixel)
+- $\pi(\cdot)$ – Projektionsfunktion (Division durch die Tiefe)
 - $x_{ij}$ – beobachtete Pixelposition von Punkt $j$ in Frame $i$
-- $\rho(\cdot)$ – robuste Loss-Funktion (z.B. Huber) gegen Outlier
+- $\rho(\cdot)$ – robuste Loss-Funktion gegen Outlier (siehe unten)
 
-Gelöst wird das nichtlineare Least-Squares-Problem typischerweise mit Levenberg-Marquardt.
+Eine Kamera-Pose wird typischerweise als $T_0 = (I, \mathbf{0})$ **fixiert**, damit das Problem überhaupt eine eindeutige Lösung hat. Gelöst wird das nichtlineare Least-Squares-Problem mit **Levenberg-Marquardt** (oder verwandten Trust-Region-Verfahren wie in g2o/Ceres).
 
-*TBD: Schwarzes-Loch-Strategie / Marginalisierung älterer Keyframes.*
+**Huber-Loss** statt purem L2:
+
+$$
+\rho(r) = \begin{cases} r^2 & |r| \le \delta \\ 2\delta\,|r| - \delta^2 & |r| > \delta \end{cases}
+$$
+
+Quadratisch nahe null, linear für große Residuen – so dominieren einzelne Ausreißer nicht das gesamte Optimum (sonst kann BA Punkte mit hohem Restfehler auf absurde Positionen verschieben, um den L2-Fehler künstlich klein zu rechnen).
+:::
+
+::: {.vslam-slide}
+#### Robustheits-Pipeline
+Reines BA reicht in der Praxis nicht – ein paar Outlier oder schlecht triangulierte Punkte können das Ergebnis verschlechtern. Im Notebook nutzen wir deshalb folgende Pipeline:
+
+1. **Parallaxe-Filter vor BA**: Punkte mit < 1° Sichtwinkel zwischen den Kameras verwerfen – ihre Tiefe wäre nicht beobachtbar und sie würden gegen unendlich driften.
+2. **Huber-Loss** im BA: einzelne Ausreißer dominieren nicht das Optimum.
+3. **Outlier-Pruning + Re-BA**: nach dem ersten Lauf Punkte mit Reproj-Fehler über einer Schwelle (z.B. 2 px) entfernen, dann BA erneut auf der bereinigten Karte laufen lassen.
+
+Diese Schritte sind Standard in echten SLAM-Systemen (ORB-SLAM, DSO etc.).
+:::
+
+::: {.vslam-slide}
+#### Beispiel – Bundle Adjustment auf unseren Keyframes
+
+Wir nehmen die 3D-Punkte aus den drei Keyframes, fügen synthetisches Rauschen auf die Initialposen und Punktpositionen hinzu (simuliert die typische VO-Drift) und lassen BA optimieren:
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/ba_histogram.png" width="85%">
+  <figcaption>Verteilung der Reprojektionsfehler vor und nach Bundle Adjustment</figcaption>
+</div>
+```
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/ba_3d_vergleich.png" width="100%">
+  <figcaption>3D-Karte vorher (gestörte Initialisierung) vs. nachher (nach BA)</figcaption>
+</div>
+```
+
+Das BA reduziert den mittleren Reprojektionsfehler auf nahezu null und richtet die 3D-Punkte konsistent zu den Kamera-Posen aus – die Voraussetzung für den nächsten Schritt: das **globale Mapping mit Loop Closure** (Step 3.1).
 :::
 
 :::
@@ -505,7 +615,7 @@ Gelöst wird das nichtlineare Least-Squares-Problem typischerweise mit Levenberg
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 3</span>
+<span class="vslam-counter">Slide 1 / 6</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
