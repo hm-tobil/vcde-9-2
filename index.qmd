@@ -427,7 +427,7 @@ Mehrere Keyframes (z.B. 3)
     → 5. Lokale 3D-Karte                    (Landmarks + Kamera-Posen)
 ```
 
-**Tracks** sind der zentrale Datenstruktur-Trick: ein Feature, das in Frame 0, 1 und 2 wiedergefunden wird, gehört zu **einem einzigen 3D-Punkt** – einem Landmark.
+**Tracks** sind die zentrale Datenstruktur: ein Feature, das in Frame 0, 1 und 2 wiedergefunden wird, gehört zu **einem einzigen 3D-Punkt** – einem Landmark.
 
 ```{=html}
 <div style="text-align: center;">
@@ -511,7 +511,7 @@ Beides motiviert direkt den nächsten Schritt – die **lokale Optimierung (Step
 
 ::: {.vslam-slide}
 #### Problemstellung
-Nach dem lokalen Mapping haben wir 3D-Landmarks **und** Kamera-Posen – aber beide sind unabhängig voneinander aus paarweisen Schätzungen entstanden. Daraus resultieren systematische Inkonsistenzen:
+Nach dem lokalen Mapping haben wir **3D-Landmarks** und **Kamera-Posen** – aber beide sind unabhängig voneinander aus paarweisen Schätzungen entstanden. Daraus resultieren systematische Inkonsistenzen:
 
 - Pixel-Rauschen in der Feature-Detektion (∼0.5 px)
 - Ungenaue Kamera-Kalibrierung (geschätztes $K$)
@@ -528,7 +528,7 @@ $$
 r_{ij} \;=\; x_{ij} \;-\; \pi\!\big(K\,(R_i X_j + t_i)\big)
 $$
 
-In der Praxis bleibt immer ein Restfehler – und genau diesen minimiert Bundle Adjustment **simultan** über alle Beobachtungen.
+In der Praxis bleibt immer ein Restfehler – dieser wird durch Bundle Adjustment simultan minimiert.
 
 ```{=html}
 <div style="text-align: center;">
@@ -585,7 +585,7 @@ Reines BA reicht in der Praxis nicht – ein paar Outlier oder schlecht triangul
 2. **Huber-Loss** im BA: einzelne Ausreißer dominieren nicht das Optimum.
 3. **Outlier-Pruning + Re-BA**: nach dem ersten Lauf Punkte mit Reproj-Fehler über einer Schwelle (z.B. 2 px) entfernen, dann BA erneut auf der bereinigten Karte laufen lassen.
 
-Diese Schritte sind Standard in echten SLAM-Systemen (ORB-SLAM, DSO etc.).
+Diese Schritte sind Standard in SLAM-Systemen (ORB-SLAM etc.).
 :::
 
 ::: {.vslam-slide}
