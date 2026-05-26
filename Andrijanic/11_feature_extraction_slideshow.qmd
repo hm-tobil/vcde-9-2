@@ -1,0 +1,491 @@
+---
+title: "1.1 Feature Extraction"
+subtitle: "ORB-SLAM3 — Visuelle Merkmale erkennen und beschreiben"
+author: "Nediljko Andrijanic"
+date: today
+lang: de
+format:
+  revealjs:
+    theme: dark
+    width: 1400
+    height: 900
+    margin: 0.1
+    slide-number: true
+    hash: true
+    hash-type: number
+    transition: slide
+    background-transition: fade
+    highlight-style: github-dark
+    embed-resources: true
+    code-line-numbers: false
+    incremental: false
+execute:
+  echo: false
+  eval: true
+  warning: false
+  message: false
+---
+
+```{python}
+#| include: false
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import Patch, FancyBboxPatch, Rectangle
+import glob
+
+plt.style.use('dark_background')
+plt.rcParams.update({
+    'figure.facecolor': '#191919',
+    'axes.facecolor':   '#191919',
+    'savefig.facecolor':'#191919',
+    'font.size': 11,
+})
+
+bildpfade = sorted(glob.glob('../cam0/*.png'))
+bild_bgr  = cv2.imread(bildpfade[0])
+bild_bgr2 = cv2.imread(bildpfade[1])
+bild_rgb  = cv2.cvtColor(bild_bgr,  cv2.COLOR_BGR2RGB)
+bild_rgb2 = cv2.cvtColor(bild_bgr2, cv2.COLOR_BGR2RGB)
+grau      = cv2.cvtColor(bild_bgr,  cv2.COLOR_BGR2GRAY)
+grau2     = cv2.cvtColor(bild_bgr2, cv2.COLOR_BGR2GRAY)
+geglättet = cv2.GaussianBlur(grau, (5, 5), 1)
+
+blumen_bgr = cv2.imread('blumen.jpg')
+blumen_rgb = cv2.cvtColor(blumen_bgr, cv2.COLOR_BGR2RGB)
+blumen_gray = cv2.cvtColor(blumen_bgr, cv2.COLOR_BGR2GRAY)
+
+KREIS = [
+    (0,3),(1,3),(2,2),(3,1),(3,0),(3,-1),(2,-2),(1,-3),
+    (0,-3),(-1,-3),(-2,-2),(-3,-1),(-3,0),(-3,1),(-2,2),(-1,3)
+]
+```
+
+# Schritt 1: Graustufen
+
+## Warum nur Helligkeit, nicht Farbe?
+
+- **Farbe ändert sich mit Beleuchtung:** Ein rotes Objekt kann dunkelrot oder hellrot sein — die Form ist aber gleich
+- **Kanten sind Helligkeitsunterschiede:** Ein dunkler Bereich neben einem hellen Bereich erzeugt eine Kante — egal welche Farben
+- **Computer Vision braucht Struktur, nicht Farbe:** Features sind geometrische Muster (Ecken, Kanten, Gradienten)
+- **Rechenzeit sparen:** 3 Kanäle (RGB) → 1 Kanal (Gray) = 3× schneller
+
+## Die Formel
+
+$$I_{grau} = 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$$
+
+**Warum Grün am stärksten?** Das menschliche Auge ist dafür am empfindlichsten.
+
+## Beispiel: RGB → Graustufen
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+
+axes[0].imshow(blumen_rgb)
+axes[0].set_title('Original (RGB)', fontsize=13)
+axes[0].axis('off')
+
+axes[1].imshow(blumen_gray, cmap='gray')
+axes[1].set_title('Graustufen', fontsize=13)
+axes[1].axis('off')
+
+py, px = 200, 400
+B = int(blumen_bgr[py,px][0]); G = int(blumen_bgr[py,px][1]); R = int(blumen_bgr[py,px][2])
+I = int(0.299*R + 0.587*G + 0.114*B)
+axes[2].axis('off')
+axes[2].text(0.05, 0.93, f'Rechenbeispiel — Pixel ({px},{py}):', fontsize=13,
+             transform=axes[2].transAxes, color='#aaaaff', fontweight='bold',
+             verticalalignment='top')
+rechnung = (
+    f"  R = {R}\n"
+    f"  G = {G}\n"
+    f"  B = {B}\n\n"
+    f"  I = 0.299 × {R} = {0.299*R:.1f}\n"
+    f"    + 0.587 × {G} = {0.587*G:.1f}\n"
+    f"    + 0.114 × {B} = {0.114*B:.1f}\n"
+    f"    ─────────────────\n"
+    f"  I = {I}"
+)
+axes[2].text(0.05, 0.78, rechnung, fontsize=12, transform=axes[2].transAxes,
+             verticalalignment='top', fontfamily='monospace', color='white',
+             bbox=dict(boxstyle='round', facecolor='#2a2a2a', alpha=0.9))
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+# Schritt 2: Gauss-Filter
+
+## 2.1 Was macht Filter?
+
+**Problem:** Kamerasensoren erzeugen Rauschen — zufällige Helligkeits-Schwankungen
+
+**Lösung:** Jeder Pixel bekommt einen neuen Wert = **gewichteter Durchschnitt** seiner Nachbarn
+
+- Nachbar-Pixel in der **Nähe** zählen mehr
+- Nachbar-Pixel weit weg zählen weniger
+- Rauschen wird geglättet
+- Echte Kanten bleiben erhalten
+
+## 2.2 Wie berechnet man?
+
+**Gauss-Formel:**
+
+$$G(x,y) = \frac{1}{2\pi\sigma^2} e^{-\frac{x^2+y^2}{2\sigma^2}}$$
+
+**Was sind x und y?** — Die **Koordinaten relativ zur Mitte** des 5×5 Kernels:
+
+```
+      x →  -2   -1    0   +1   +2
+           ┌────┬────┬────┬────┬────┐
+      y -2 │    │    │    │    │    │
+           ├────┼────┼────┼────┼────┤
+      y -1 │    │    │    │    │    │
+           ├────┼────┼────┼────┼────┤
+      y  0 │    │    │ M  │    │    │  ← Center (x=0, y=0)
+           ├────┼────┼────┼────┼────┤
+      y +1 │    │    │    │    │    │
+           ├────┼────┼────┼────┼────┤
+      y +2 │    │    │    │    │    │
+           └────┴────┴────┴────┴────┘
+```
+
+## Gewichte — je weiter weg, desto kleiner
+
+| Position | x | y | Entfernung | Gewicht |
+|----------|---|---|------------|---------|
+| **Mitte** | 0 | 0 | 0 | **0.195** (19.5%) |
+| Rechts | 1 | 0 | 1 | 0.071 (7.1%) |
+| Diagonal | 1 | 1 | √2 ≈ 1.4 | 0.025 (2.5%) |
+| **Eck** | 2 | 2 | √8 ≈ 2.8 | **0.004** (0.4%) |
+
+Die Gewichte addieren sich zu **1.0**.
+
+## 2.3 Was ist das Ergebnis?
+
+```{python}
+#| include: false
+kernel_1d = cv2.getGaussianKernel(5, 1)
+kernel_norm = (kernel_1d @ kernel_1d.T)
+kernel_norm /= kernel_norm.sum()
+
+patch_vor = np.array([
+    [ 22,  18,  25,  19,  23],
+    [ 20,  17,  21,  24,  18],
+    [ 19,  23, 250,  21,  20],
+    [ 21,  18,  19,  22,  17],
+    [ 23,  20,  24,  18,  21],
+], dtype=float)
+patch_nach = cv2.GaussianBlur(patch_vor.astype(np.float32), (5,5), 1)
+neuer_wert = int(patch_nach[2, 2])
+```
+
+**Vorher und Nachher:**
+
+```{python}
+#| fig-align: center
+fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+for idx, (ax, data, title) in enumerate([
+    (axes[0], patch_vor, 'Vorher (Original)'),
+    (axes[1], patch_nach, 'Nachher (nach Gauss-Filter)')
+]):
+    ax.set_xlim(-0.5, 4.5)
+    ax.set_ylim(4.5, -0.5)
+    for i in range(5):
+        for j in range(5):
+            val = int(data[i, j])
+            if i==2 and j==2:
+                farbe = [0.85, 0.15, 0.15]
+            else:
+                v = val / 255.0
+                farbe = [v, v, v]
+            rect = plt.Rectangle([j-0.5, i-0.5], 1, 1, color=farbe)
+            ax.add_patch(rect)
+            fg = 'black' if val > 140 else 'white'
+            ax.text(j, i, str(val), ha='center', va='center',
+                    color=fg, fontsize=10, fontweight='bold')
+    for x in np.arange(-0.5, 5, 1):
+        ax.axvline(x, color='#444444', lw=1)
+        ax.axhline(x, color='#444444', lw=1)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title(title, fontsize=12, color='white')
+    ax.set_aspect('equal')
+
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+# Schritt 3: Bildpyramide
+
+## Problem: Objekte in verschiedenen Größen
+
+**Beispiel:**
+- Eine Straßenlaterne **2m** entfernt → groß im Bild
+- Dieselbe Laterne **10m** entfernt → klein im Bild
+
+→ ORB ohne Pyramide würde **dieselbe Laterne nicht wiedererkennen**.
+
+## Die Lösung — 8 Größenstufen
+
+| Stufe | Faktor | Beispiel |
+|:---:|:---:|:---:|
+| 0 | 1.0× | 800×400 |
+| 1 | 0.83× | 667×333 |
+| 3 | 0.58× | 463×231 |
+| 7 | 0.28× | 223×111 |
+
+Features auf Stufe 3 entsprechen Objekten die **1.73× kleiner** erscheinen.
+
+## Alle 8 Stufen mit Features
+
+```{python}
+#| fig-align: center
+skala = 1.2; n_stufen = 8
+
+def apply_quadtree(kps, w, h, grid_nx=15, grid_ny=8):
+    """Verteile Features gleichmäßig mit Quadtree"""
+    cw, ch = w // grid_nx, h // grid_ny
+    qt_features = []
+    for ty in range(grid_ny):
+        for tx in range(grid_nx):
+            beste = None
+            for k in kps:
+                kx, ky = int(k.pt[0]), int(k.pt[1])
+                if tx*cw <= kx < (tx+1)*cw and ty*ch <= ky < (ty+1)*ch:
+                    if beste is None or k.response > beste.response:
+                        beste = k
+            if beste:
+                qt_features.append(beste)
+    return qt_features
+
+bilder_stufen = []
+features_quadtree = []
+
+bild_akt = bild_rgb.copy()
+for i in range(n_stufen):
+    h, w = bild_akt.shape[:2]
+    bild_grau = cv2.cvtColor(bild_akt, cv2.COLOR_RGB2GRAY)
+
+    ft = cv2.FastFeatureDetector_create(threshold=5)
+    kps = ft.detect(bild_grau, None)
+    kps_qt = apply_quadtree(kps, w, h, grid_nx=min(15, w//30), grid_ny=min(8, h//30))
+
+    bilder_stufen.append((i, bild_akt.copy(), w, h, skala**i))
+    features_quadtree.append((i, kps_qt, w, h, skala**i))
+
+    if i < n_stufen-1:
+        bild_akt = cv2.resize(bild_akt, (int(w/skala), int(h/skala)))
+
+max_breite = sum([b[2] for b in bilder_stufen]) + (n_stufen-1)*20
+max_hohe = bilder_stufen[0][3]
+
+fig = plt.figure(figsize=(max(16, max_breite/100), max_hohe/25 + 1.5))
+
+ax1 = fig.add_subplot(211)
+ax1.set_xlim(0, max_breite); ax1.set_ylim(0, max_hohe + 80)
+ax1.axis('off'); ax1.invert_yaxis()
+ax1.text(10, -30, 'Reihe 1: Nur Bilder (Original)', fontsize=11, fontweight='bold', color='#aaa')
+
+x_pos = 10
+for i, img, w, h, faktor in bilder_stufen:
+    ax_small = fig.add_axes([x_pos/max_breite*0.92 + 0.04, 0.52, w/max_breite*0.92, h/(max_hohe+100)*0.4])
+    ax_small.imshow(img); ax_small.axis('off')
+    ax1.text(x_pos + w/2, max_hohe + 50, f'Stufe {i}\n{w}×{h}', ha='center', va='top',
+             fontsize=9, fontweight='bold', color='white',
+             bbox=dict(facecolor='#000000', alpha=0.9, pad=4, edgecolor='#555555', linewidth=1.5))
+    x_pos += w + 20
+
+ax2 = fig.add_subplot(212)
+ax2.set_xlim(0, max_breite); ax2.set_ylim(0, max_hohe + 100)
+ax2.axis('off'); ax2.invert_yaxis()
+ax2.text(10, -40, 'Reihe 2: Nach Quadtree Distribution (grün) — gleichmäßig verteilt', fontsize=12, fontweight='bold', color='#55ff55')
+
+x_pos = 10
+for i, kps_qt, w, h, faktor in features_quadtree:
+    bild_orig = bilder_stufen[i][1]
+    img = bild_orig.copy()
+
+    text = f'{len(kps_qt)} Features'
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fontScale = max(0.25, w/400)
+    thickness = 1
+    textsize = cv2.getTextSize(text, font, fontScale, thickness)[0]
+    x_text = 3
+    y_text = textsize[1] + 3
+    cv2.rectangle(img, (x_text-2, 0), (x_text + textsize[0] + 2, y_text + 2), (0,0,0), -1)
+    cv2.putText(img, text, (x_text, y_text), font, fontScale, (80, 255, 80), thickness)
+
+    for k in kps_qt:
+        cv2.circle(img, (int(k.pt[0]), int(k.pt[1])), max(1, int(w/150)), (80, 255, 80), -1)
+
+    ax_small = fig.add_axes([x_pos/max_breite*0.92 + 0.04, 0.02, w/max_breite*0.92, h/(max_hohe+100)*0.4])
+    ax_small.imshow(img); ax_small.axis('off')
+    x_pos += w + 20
+
+fig.suptitle('Bildpyramide — alle 8 Stufen nach Quadtree Distribution',
+             fontsize=13, fontweight='bold', y=0.98)
+plt.show()
+```
+
+## Wie funktioniert die Pyramide?
+
+- **Stufe 0:** Original-Größe (z.B. 800×400 px)
+- **Stufe 1:** 1.2× verkleinert → 667×333 px
+- **Stufe 2:** 1.2× verkleinert → 556×278 px
+- **...**
+- **Stufe 7:** Nach 7 Verkleinerungen → 223×111 px
+
+Jede Stufe ist **exakt 1.2× kleiner**. Dadurch findet FAST **unterschiedliche Objekt-Größen** auf unterschiedlichen Stufen!
+
+## Sub-Pixel Genauigkeit
+
+Ein Feature auf Stufe $k$ wird auf Original-Koordinaten zurückgerechnet:
+
+$$\text{Position}_\text{original} = \text{Position}_\text{Stufe k} \times 1.2^k$$
+
+| Stufe k | Skalierungsfaktor | Genauigkeit |
+|:---:|:---:|:---:|
+| 0 | 1.0× | ±1.0 px |
+| 3 | 1.73× | **±0.58 px** |
+| 7 | 3.58× | **±0.28 px** |
+
+---
+
+# Schritt 4: FAST Detektor
+
+## Ziel: Ecken erkennen
+
+Eine **Ecke** ist ein Punkt, wo sich Helligkeit abrupt in **zwei Richtungen** ändert.
+
+## FAST Algorithmus
+
+**Für jeden Pixel p:**
+
+1. Zeichne einen **Kreis mit 16 Nachbarn** (Radius 3)
+2. Prüfe ob ≥ **9 zusammenhängende** Pixel entweder:
+   - **Heller** sind: $I_x > I_p + t$
+   - **Dunkler** sind: $I_x < I_p - t$
+3. Falls ja → **Ecke erkannt**
+
+$t$ = Schwellenwert (z.B. 5 oder 20)
+
+## Die 16-er Kreis-Maske
+
+```
+     ×  ×  ×
+   ×  1  2  3  ×
+  × 16        4 ×
+  × 15    p   5 ×    ← Zentrum p
+  × 14        6 ×
+   × 13  8  7  ×
+     × 12 11 10 9 ×
+
+Wenn z.B. Pixel 1–10 alle
+dunkler als p−t sind:
+→ 10 zusammenhängende
+→ ECKE!
+```
+
+**Warum 9?** Mindestens die Hälfte+1 des Kreises (16/2 + 1 = 9) muss konsistent sein.
+
+## Beispiel: Pixel-Grid
+
+```{python}
+#| fig-align: center
+fast_det = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+kps_fast = fast_det.detect(geglättet, None)
+kp_best  = max(kps_fast, key=lambda x: x.response)
+cx, cy   = int(kp_best.pt[0]), int(kp_best.pt[1])
+
+r = 3
+grid = geglättet[cy-r:cy+r+1, cx-r:cx+r+1].copy().astype(int)
+I_p  = grid[r, r]
+t    = 25
+kreis_set = {(dy+r, dx+r) for dx, dy in KREIS}
+
+rgb_grid = np.full((2*r+1, 2*r+1, 3), 0.06)
+
+heller_n = dunkler_n = aehnlich_n = 0
+for (row, col) in kreis_set:
+    val = grid[row, col]
+    if val > I_p + t:
+        rgb_grid[row, col] = [0.15, 0.80, 0.15]; heller_n  += 1
+    elif val < I_p - t:
+        rgb_grid[row, col] = [0.85, 0.15, 0.15]; dunkler_n += 1
+    else:
+        rgb_grid[row, col] = [0.40, 0.40, 0.40]; aehnlich_n += 1
+rgb_grid[r, r] = [1.0, 0.85, 0.0]
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+axes[0].imshow(rgb_grid, aspect='equal', interpolation='nearest')
+for i in range(2*r+1):
+    for j in range(2*r+1):
+        is_center = (i == r and j == r)
+        is_kreis  = (i, j) in kreis_set
+        if is_center:
+            axes[0].text(j, i, str(grid[i, j]), ha='center', va='center',
+                         color='black', fontsize=14, fontweight='bold')
+        elif is_kreis:
+            axes[0].text(j, i, str(grid[i, j]), ha='center', va='center',
+                         color='white', fontsize=12, fontweight='bold')
+
+for x in np.arange(-0.5, 2*r+1, 1):
+    axes[0].axvline(x, color='#2a2a2a', lw=1.0)
+    axes[0].axhline(x, color='#2a2a2a', lw=1.0)
+
+axes[0].set_xticks([]); axes[0].set_yticks([])
+axes[0].set_title(
+    f'7×7 Pixel-Grid — Zentrum p bei ({cx},{cy})\n'
+    f'Nur die 16 Kreis-Pixel + Zentrum sind relevant',
+    fontsize=12
+)
+
+legend_h = [
+    Patch(color='#ffdd00', label=f'Zentrum p = {I_p}'),
+    Patch(color='#22cc22', label=f'Heller (> {I_p}+{t} = {I_p+t}): {heller_n} Pixel'),
+    Patch(color='#cc2222', label=f'Dunkler (< {I_p}-{t} = {I_p-t}): {dunkler_n} Pixel'),
+    Patch(color='#666666', label=f'Ähnlich: {aehnlich_n} Pixel'),
+]
+
+axes[1].legend(handles=legend_h, loc='center', fontsize=12, framealpha=0.95)
+axes[1].axis('off')
+
+ergebnis = 'ECKE ERKANNT ✓' if max(heller_n, dunkler_n) >= 9 else 'Keine Ecke'
+axes[1].text(0.5, 0.3, ergebnis,
+            ha='center', va='center', fontsize=20, fontweight='bold',
+            color='#00ff00' if max(heller_n, dunkler_n) >= 9 else '#ff6666',
+            transform=axes[1].transAxes)
+
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+# Zusammenfassung
+
+## Die Pipeline in Schritt 1-4
+
+1. **Graustufen:** RGB → Helligkeit (1 Kanal statt 3)
+2. **Gauss-Filter:** Rauschen reduzieren mit gewichteten Durchschnitt
+3. **Bildpyramide:** 8 Größenstufen für Skalierungsinvarianz
+4. **FAST Detektor:** Ecken erkennen auf allen Stufen
+
+## Ergebnis
+
+✅ **Viele Keypoints** mit Position (x, y) auf allen 8 Pyramidenstufen
+
+Die werden dann weiterverarbeitet für:
+- Orientierung bestimmen
+- Deskriptoren berechnen
+- Matching mit anderen Bildern
+- Pose-Schätzung
+- Trajektorie-Verfolgung
