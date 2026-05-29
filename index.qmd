@@ -630,36 +630,71 @@ Das BA reduziert den mittleren Reprojektionsfehler auf nahezu null und richtet d
 
 ::: {.vslam-slide}
 #### Konzept
-Loop Closure erkennt, wenn die Kamera an einen bereits zuvor besuchten Ort zurückkehrt.
-Diese Wiedererkennung erlaubt es, akkumulierte Drift-Fehler entlang der gesamten
-Trajektorie zu korrigieren – ein wesentlicher Vorteil gegenüber reiner visueller Odometrie.
+Während der Fahrt akkumuliert die visuelle Odometrie unvermeidlich Drift — der
+geschätzte Pfad entfernt sich immer weiter vom wahren Pfad (siehe 1.2/2.2).
+**Loop Closure** löst dieses Problem, indem es erkennt, wann die Kamera an einen
+bereits besuchten Ort zurückkehrt.
 
-*TBD: Visualisierung / Beispielbild Loop Closure einfügen.*
+Diese Wiedererkennung liefert eine zusätzliche Constraint: „Frame $i$ und Frame $j$
+sind am selben Ort". Zusammen mit den Odometrie-Kanten entsteht ein **Pose-Graph**,
+der in Schritt 3.2 global optimiert wird.
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/pgo_before_after.png" width="95%">
+  <figcaption>Links: Trajektorie mit Drift — Loops klaffen auseinander.
+  Rechts: Nach PGO — die orangen Pfeile zeigen die Korrektur pro Pose.</figcaption>
+</div>
+```
 :::
 
 ::: {.vslam-slide}
-#### Place Recognition – Bag of Visual Words
-Aus extrahierten Deskriptoren (ORB, SIFT, …) wird ein Vokabular $V = \{w_1, \dots, w_K\}$
-visueller Wörter erstellt (k-means Clustering). Jeder Frame wird dann als BoW-Vektor
-$v \in \mathbb{R}^K$ repräsentiert.
+#### Place Recognition — Bag of Visual Words
+Wie erkennt das System, dass es schon einmal hier war? Dazu werden ORB-Deskriptoren
+aus jedem Frame über **k-Means-Clustering** zu einem Vokabular
+$V = \{w_1, \dots, w_K\}$ visueller Wörter zusammengefasst.
+Jeder Frame wird als BoW-Vektor $v \in \mathbb{R}^K$ repräsentiert.
 
-Ähnlichkeit zweier Frames:
+Die Ähnlichkeit zweier Frames ergibt sich aus der $L_1$-Distanz der normalisierten Vektoren:
 
 $$
-s(v_a, v_b) = 1 - \tfrac{1}{2}\, \bigg\| \tfrac{v_a}{\|v_a\|_1} - \tfrac{v_b}{\|v_b\|_1} \bigg\|_1
+s(v_a, v_b) = 1 - \tfrac{1}{2}\,
+\bigg\| \tfrac{v_a}{\|v_a\|_1} - \tfrac{v_b}{\|v_b\|_1} \bigg\|_1
 $$
 
-Übersteigt $s$ einen Schwellwert, wird ein **Loop Candidate** geprüft (geometrische Verifikation
-via PnP/Essential Matrix).
+Übersteigt $s$ einen Schwellwert, wird ein **Loop Candidate** geometrisch verifiziert
+(Essential Matrix + PnP). Nur bestandene Kandidaten gehen als Kanten in den Pose-Graphen ein.
 :::
 
 ::: {.vslam-slide}
-#### Mathematik – Drift-Korrektur über Pose-Graph
-Ein erkannter Loop liefert eine zusätzliche Kante $T_{ij}^{loop}$ zwischen zwei weit
-auseinanderliegenden Keyframes. Diese Constraint geht in die globale Optimierung
-(siehe Step 3.2) ein und "schließt" den Drift.
+#### Konkretes Beispiel — KF62 ↔ KF106
+In unserem TUM-Datensatz wurde der stärkste Loop zwischen KeyFrame 62 und 106 detektiert:
+Die Kamera kehrt nach 220 Frames (40.8 s) an fast dieselbe Position zurück
+(Abstand: nur 1.95 m). Die 3D-Punktwolken überlappen zu **69%**.
 
-*TBD: Beispiel mit Drift-vorher/-nachher Darstellung.*
+```{=html}
+<div style="display: flex; gap: 12px; justify-content: center;">
+  <div style="text-align: center;">
+    <img src="images/loop_frames/frame_kf62.png" width="90%">
+    <figcaption>KF 62 — Frühere Aufnahme</figcaption>
+  </div>
+  <div style="text-align: center;">
+    <img src="images/loop_frames/frame_kf106.png" width="90%">
+    <figcaption>KF 106 — Spätere Aufnahme</figcaption>
+  </div>
+</div>
+```
+:::
+
+::: {.vslam-slide}
+#### Von der Erkennung zur Constraint
+Jeder verifizierte Loop liefert eine Kante $T_{ij}^{\text{loop}}$ im Pose-Graphen:
+
+- **Odometrie-Kanten** (blau): Frame-zu-Frame-Relationen aus der VO
+- **Loop-Closure-Kanten** (rot): „Frame $i$ und $j$ sind am selben Ort"
+
+Diese zusätzlichen Kanten zwingen den Pose-Graphen, den Drift zu korrigieren —
+die Optimierung erfolgt in Schritt 3.2.
 :::
 
 :::
@@ -667,7 +702,7 @@ auseinanderliegenden Keyframes. Diese Constraint geht in die globale Optimierung
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 3</span>
+<span class="vslam-counter">Slide 1 / 4</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
@@ -682,36 +717,66 @@ auseinanderliegenden Keyframes. Diese Constraint geht in die globale Optimierung
 
 ::: {.vslam-slide}
 #### Konzept
-Im Gegensatz zur lokalen Optimierung (nur Nachbarschaft im Konvisibilitätsgraph) korrigiert
-die globale Optimierung **alle** Keyframe-Posen gleichzeitig – insbesondere nachdem ein
-Loop Closure erkannt wurde.
+Während die lokale Optimierung (2.2) nur die unmittelbare Nachbarschaft im
+Konvisibilitätsgraphen betrachtet, optimiert die **globale Pose-Graph-Optimierung (PGO)
+alle $n$ Keyframe-Posen gleichzeitig**. Sobald Loop-Closure-Kanten aus 3.1 vorliegen,
+entsteht ein überbestimmtes System:
+
+- **Odometrie-Kanten** halten die Frame-zu-Frame-Relationen
+- **Loop-Closure-Kanten** erzwingen räumliche Nähe zwischen weit entfernten Frames
+
+Die PGO verteilt den akkumulierten Fehler optimal über die gesamte Trajektorie —
+die Loops werden geschlossen, der Drift wird korrigiert.
 :::
 
 ::: {.vslam-slide}
 #### Mathematik – Pose-Graph Optimization
-Repräsentiert wird die Trajektorie als Graph mit Posen $T_i \in SE(3)$ als Knoten und
-relativen Messungen $\tilde{T}_{ij}$ als Kanten. Optimierungsziel:
+Die Trajektorie wird als Graph mit Posen $T_i \in SE(3)$ als Knoten und
+relativen Messungen $\tilde{T}_{ij}$ als Kanten modelliert. Das Optimierungsziel
+minimiert die Abweichung auf der Lie-Algebra $\mathfrak{se}(3)$:
 
 $$
-\min_{T_1, \dots, T_n} \;\; \sum_{(i,j) \in \mathcal{E}}
-\big\| \log\!\left( \tilde{T}_{ij}^{-1} \, T_i^{-1} \, T_j \right)^{\vee} \big\|_{\Sigma_{ij}}^2
+\boxed{\;
+\min_{T_1,\dots,T_n} \sum_{(i,j)\in\mathcal{E}_{\text{odom}}}
+\big\| \log(\tilde{T}_{ij}^{-1}\,T_i^{-1}\,T_j)^{\vee} \big\|^2
+\;+\!
+\sum_{(i,j)\in\mathcal{E}_{\text{loop}}}
+\big\| \log(\tilde{T}_{ij}^{-1}\,T_i^{-1}\,T_j)^{\vee} \big\|^2
+\;}
 $$
 
-Mit:
+mit $T_0 = (I, \mathbf{0})$ als fixiertem Anker (Eichfreiheit).
 
-- $\log(\cdot)^{\vee}$ – Logarithmus-Map auf $SE(3)$ (liefert $\mathfrak{se}(3)$-Element)
-- $\Sigma_{ij}$ – Informationsmatrix der Messung
-- $\mathcal{E}$ – Kantenmenge inkl. Loop-Closure-Kanten
+Für die Translationen wird das System linear und kann als **sparses
+Least-Squares-Problem** direkt via Cholesky-Zerlegung gelöst werden.
+Vollständige SE(3)-Optimierung nutzt iterative Verfahren (Levenberg-Marquardt, g2o, Ceres).
+:::
 
-Gelöst i.d.R. mit g2o oder Ceres.
+::: {.vslam-slide}
+#### Vorher → Nachher: Drift-Korrektur in Aktion
+Die untere Grafik zeigt den Effekt der PGO auf unseren TUM-Datensatz.
+**Vor der PGO** (rot) driftet die Trajektorie — die Loop-Kandidaten klaffen auseinander.
+**Nach der PGO** (grün) sind die Loops geschlossen (Restfehler < 5 cm).
+Die orangen Pfeile zeigen die Korrektur jeder einzelnen Pose.
+
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/pgo_before_after.png" width="100%">
+  <figcaption>Oben: Trajektorie vor/nach PGO mit Korrektur-Pfeilen.
+  Unten: Zoom auf einen Loop (links) und Fehlerverlauf (Mitte/Rechts).</figcaption>
+</div>
+```
 :::
 
 ::: {.vslam-slide}
 #### Globales Bundle Adjustment (optional)
-Nach dem Pose-Graph-Schritt kann ein finales **Full Bundle Adjustment** über alle Posen
-und Punkte erfolgen – analog zur lokalen Optimierung in Step 2.2, aber über die gesamte Map.
+Nach der Pose-Graph-Optimierung folgt im vollständigen ORB-SLAM3 ein finales
+**Full Bundle Adjustment** — dasselbe Prinzip wie in 2.2, aber über die gesamte
+Karte mit allen Posen und 3D-Landmarks.
 
-*TBD: Laufzeit-Trade-off zwischen Pose-Graph und Full-BA.*
+Der Trade-off: Full BA ist deutlich teurer ($O((m+n)^3)$ für $m$ Punkte, $n$ Posen),
+liefert aber die bestmögliche globale Konsistenz. In der Praxis wird es nur nach
+erfolgreichem Loop Closure ausgeführt.
 :::
 
 :::
@@ -719,7 +784,7 @@ und Punkte erfolgen – analog zur lokalen Optimierung in Step 2.2, aber über d
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 3</span>
+<span class="vslam-counter">Slide 1 / 4</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
