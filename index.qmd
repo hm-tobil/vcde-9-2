@@ -280,40 +280,6 @@ Details navigieren.
 
 ::: {.vslam-slides}
 
-::: {.vslam-slide}
-#### Konzept
-Das Prinzip von vSLAM basiert auf der Verwendung von Kameras zur Positions- und Objekterkennung im Raum (nicht etwa auf Lasern, vgl. LiDAR).
-Die Objekterkennung erfolgt also basierend auf Bildern, aus denen geeignete Algorithmen visuelle Features wie Kanten, Ecken oder Gradienten
-extrahieren. Positionen im Raum von besonderer Signifikanz werden durch Punkte gekennzeichnet und ergeben über die Zeit eine detaillierte
-Punktewolke, die auf der realen Umgebung liegt.
-:::
-
-::: {.vslam-slide}
-#### Visualisierung – vSLAM vs. klassisches SLAM
-
-```{=html}
-<div style="text-align: center;">
-  <img src="images/vc_anlage_1.png" width="60%">
-  <figcaption>Oben: visual SLAM, Unten: normales SLAM</figcaption>
-</div>
-```
-:::
-
-::: {.vslam-slide}
-#### Mathematik – Harris Corner Detection
-Klassischer Detektor für Ecken: lokale Intensitätsänderungen werden über die
-Strukturmatrix $M$ in einem Fenster $W$ aufsummiert:
-
-$$
-M = \sum_{(u,v) \in W} w(u,v)
-\begin{bmatrix} I_x^2 & I_x I_y \\ I_x I_y & I_y^2 \end{bmatrix}
-$$
-
-Der Corner-Response-Wert $R = \det(M) - k \cdot \text{tr}(M)^2$ ist groß, wenn beide
-Eigenwerte von $M$ groß sind – also in beide Richtungen Intensitätsänderungen vorliegen (Ecke).
-
-*TBD: ORB / SIFT als modernere Alternativen ergänzen.*
-:::
 
 ::: {.vslam-slide}
 #### Schritt 1: Graustufen-Konvertierung
@@ -323,6 +289,12 @@ Das erste Schritt konvertiert das RGB-Eingabebild zu Graustufen. Dies reduziert 
 - Farbinformation ist oft redundant für Feature-Erkennung
 - Graustufen-Features sind computationally cheaper
 - Robustheit gegen Beleuchtungsänderungen
+
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <img src="images/feature_extraction/graustufen.png" style="width: 100%; max-height: 500px; object-fit: contain;">
+</div>
+```
 :::
 
 ::: {.vslam-slide}
@@ -333,24 +305,38 @@ Der Gauss-Filter glättet das Bild, um hochfrequentes Rauschen zu reduzieren, w�
 - Kernelgröße: typischerweise 3×3 oder 5×5
 - Standardabweichung σ: bestimmt die Glätte
 - Effekt: lokale Mittelung mit Gewichten
+
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <img src="images/feature_extraction/gauss_filter.png" style="width: 100%; max-height: 500px; object-fit: contain;">
+</div>
+```
 :::
 
 ::: {.vslam-slide}
 #### Schritt 3: Bildpyramide (Multi-Skalenerkennung)
 Eine Bildpyramide ist eine Sequenz von Bildern, die progressiv verkleinert werden (üblicherweise um Faktor 1.2).
+Dies ermöglicht die Erkennung von Features über verschiedene Skalierungen — große Objekte auf groben Stufen, kleine Details auf feinen Stufen.
 
-**Interaktive Visualisierung:** Bewegen Sie den Schieberegler, um die verschiedenen Pyramidenlevel zu sehen.
+**8 Pyramidenstufen – ORB-SLAM (Skalierungsfaktor: 1.2):**
+
+- Stufe 0: 640 × 480 (Original)
+- Stufe 1: 533 × 400 (1.2× verkleinert)
+- Stufe 3: 370 × 277 (1.73× verkleinert)
+- Stufe 7: 179 × 134 (3.58× verkleinert)
+
+**Rückprojektion zu echtem Bild:** $x_{original} = x_k \times 1.2^k$
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
-  <iframe src="Andrijanic/bildpyramide_erklaerung.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="Bildpyramide Interaktive Erklärung"></iframe>
+  <img src="images/feature_extraction/bildpyramide.png" style="width: 100%; max-height: 500px; object-fit: contain;">
 </div>
 ```
 
-**Ziel:** Features auf verschiedenen Skalierungsstufen erkennen
-- Große Features auf höheren Ebenen
-- Kleine Features auf unteren Ebenen
-- ORB-SLAM: 8 Pyramidenlevel, Skalierungsfaktor 1.2
+**Features erkennen auf allen Stufen:**
+- Große Features auf höheren Ebenen (gröber)
+- Kleine Features auf unteren Ebenen (feiner)
+- Quadtree-Verteilung sorgt für gleichmäßige Verteilung pro Stufe
 :::
 
 ::: {.vslam-slide}
@@ -361,26 +347,26 @@ Der FAST (Features from Accelerated Segment Test) Detektor identifiziert Ecken d
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
-  <iframe src="Andrijanic/fast_detector_visualization.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="FAST Detektor Visualisierung"></iframe>
+  <img src="images/feature_extraction/fast_detektor.png" style="width: 100%; max-height: 500px; object-fit: contain;">
 </div>
 ```
 
 **Vorteil:** Sehr schnell, daher ideal für Echtzeit-SLAM.
 :::
 
-::: {.vslam-slide}
-#### Schritt 5: Non-Maximum Suppression (NMS)
-Nach der FAST-Erkennung liefert jeder Detektor einen Response-Wert. NMS wählt nur die besten lokalen Maxima aus — das heißt, überlappende schwache Features werden entfernt.
-
-**Resultat:** Verteilte, hochwertige Features statt Haufen ähnlicher Features in demselben Bereich.
-:::
 
 ::: {.vslam-slide}
 #### Schritt 6: Quadtree-Verteilung
-Features aus NMS können ungleichmäßig verteilt sein (z.B. gehäuft an Kanten).
+Features können ungleichmäßig verteilt sein (z.B. gehäuft an Kanten).
 Der Quadtree-Algorithmus teilt das Bild in 4 Quadranten, limitiert die Features pro Quadrant und achtet auf Gleichverteilung.
 
 **Ergebnis:** ~500 Features gleichmäßig über das gesamte Sichtfeld verteilt.
+
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <img src="images/feature_extraction/quadtree.png" style="width: 100%; max-height: 400px; object-fit: contain;">
+</div>
+```
 :::
 
 ::: {.vslam-slide}
@@ -391,25 +377,13 @@ Der Harris Corner Detector bewertet Corners robuster als reiner FAST durch eine 
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
-  <iframe src="Andrijanic/feature_example_visualization.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="Feature Beispiel Visualisierung"></iframe>
+  <img src="images/feature_extraction/harris.png" style="width: 100%; max-height: 500px; object-fit: contain;">
 </div>
 ```
 
 **Vorteil:** Robuster gegen Rotation und Skalierung als FAST allein.
 :::
 
-::: {.vslam-slide}
-#### Praktisches Beispiel: Feature auf echter Szene
-Echte Beispiel aus dem Datensatz:
-
-```{=html}
-<div style="text-align: center; margin: 20px 0;">
-  <iframe src="Andrijanic/pyramid_real_example.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="Pyramid Real Beispiel"></iframe>
-</div>
-```
-
-Diese Visualisierung zeigt, wie die Features tatsächlich in einer echten Szene erkannt werden.
-:::
 
 ::: {.vslam-slide}
 #### Die vollständige Feature-Extraction Pipeline
@@ -418,9 +392,8 @@ Zusammenfassung aller Schritte von Rohbild zu finalen Features:
 1. **Schritt 1-2:** Graustufen + Rausch-Filterung
 2. **Schritt 3:** Multi-Skalierungen via Bildpyramide
 3. **Schritt 4:** FAST-Feature auf allen Stufen
-4. **Schritt 5:** Non-Maximum Suppression (beste Features)
-5. **Schritt 6:** Quadtree-Gleichverteilung
-6. **Schritt 7:** Harris-Scoring für Robustheit
+4. **Schritt 6:** Quadtree-Gleichverteilung
+5. **Schritt 7:** Harris-Scoring für Robustheit
 
 **Output:** ~500 hochwertige, gleichverteilte, rotations-robuste Features pro Bild — die Grundlage für VO und Mapping!
 :::
@@ -430,7 +403,7 @@ Zusammenfassung aller Schritte von Rohbild zu finalen Features:
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 10</span>
+<span class="vslam-counter">Slide 1 / 7</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
