@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bildpyramide - Interaktive Erklärung</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00ff00;
+            font-size: 2.5em;
+        }
+        .intro {
+            background: #2a2a2a;
+            padding: 20px;
+            border-left: 4px solid #00ff00;
+            margin-bottom: 30px;
+            border-radius: 5px;
+        }
+        .section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+            align-items: center;
+        }
+        .section.full {
+            grid-template-columns: 1fr;
+        }
+        .canvas-container {
+            background: #0a0a0a;
+            border: 2px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+        }
+        canvas {
+            border: 1px solid #555;
+            background: #191919;
+        }
+        .info {
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 5px;
+        }
+        .info h3 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .info p {
+            margin-bottom: 10px;
+            font-size: 0.95em;
+        }
+        .slider-container {
+            margin: 20px 0;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #444;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00ff00;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00ff00;
+            cursor: pointer;
+            border: none;
+        }
+        .status {
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .status.good {
+            background: #0a3a0a;
+            color: #00ff00;
+        }
+        .status.bad {
+            background: #3a0a0a;
+            color: #ff4444;
+        }
+        .pyramid-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .pyramid-item {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .pyramid-item h4 {
+            color: #00ff00;
+            margin-bottom: 10px;
+        }
+        .pyramid-canvas {
+            width: 100%;
+            height: 150px;
+            background: #0a0a0a;
+            border: 1px solid #444;
+            border-radius: 3px;
+        }
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+        }
+        .green {
+            background: #00ff00;
+        }
+        .red {
+            background: #ff4444;
+        }
+        .yellow {
+            background: #ffff00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌳 Bildpyramide erklärt: Feature-Größe statt Objekt-Größe</h1>
+
+        <div class="intro">
+            <h3>Das Kernnproblem:</h3>
+            <p>
+                FAST-Detektor hat einen <strong>festen Radius von 3 Pixeln</strong> um Ecken zu erkennen.
+                Wenn Eckenmerkmale (Features) zu weit oder zu dicht beieinander sind, werden sie schlecht erkannt!
+            </p>
+            <p style="margin-top: 10px;">
+                <strong>Lösung:</strong> Bildpyramide mit 8 Stufen - jede Stufe verkleinert das ganze Bild.
+                Features werden relativ kleiner, bis sie optimal für FAST passen.
+            </p>
+        </div>
+
+        <!-- SEKTION 1: Interaktiver Baum -->
+        <div class="section">
+            <div>
+                <div class="canvas-container">
+                    <canvas id="treeCanvas" width="400" height="400"></canvas>
+                </div>
+            </div>
+            <div class="info">
+                <h3>🎮 Interaktiver Baum</h3>
+                <div class="slider-container">
+                    <label>Baum-Größe (Astabstand): <span id="treeSize">30</span>px</label>
+                    <input type="range" id="treeSlider" min="5" max="60" value="30">
+                </div>
+                <div class="slider-container">
+                    <label>FAST-Radius: <span id="fastRadius">3</span>px (fest!)</label>
+                    <input type="range" id="fastSlider" min="1" max="15" value="3" disabled style="opacity: 0.5;">
+                </div>
+                <div id="treeStatus" class="status"></div>
+                <p style="margin-top: 15px; font-size: 0.9em;">
+                    <strong>Schiebe die "Baum-Größe":</strong>
+                </p>
+                <ul style="margin-left: 20px; margin-top: 10px; font-size: 0.9em;">
+                    <li>5-8px: Zu dicht (rot) ❌</li>
+                    <li>9-12px: Optimal (grün) ✅</li>
+                    <li>13-60px: Zu weit (rot) ❌</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SEKTION 2: Das Problem -->
+        <div class="section full">
+            <div class="info">
+                <h3>❌ Das Problem: Warum ein einzelnes Bild nicht reicht</h3>
+                <p>
+                    Wenn nur <strong>ein</strong> Bild analysiert wird und FAST einen festen Radius hat:
+                </p>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>
+                        <strong>Großer Baum (50px Astabstand):</strong>
+                        Ecken sind zu weit auseinander. FAST findet keine 9 zusammenhängenden Pixel
+                        im 3px-Radius → <span style="color: #ff4444;">NICHT erkannt!</span>
+                    </li>
+                    <li style="margin-top: 10px;">
+                        <strong>Kleiner Baum (5px Astabstand):</strong>
+                        Ecken sind zu dicht beieinander. FAST findet kein klares Muster
+                        → <span style="color: #ff4444;">NICHT erkannt!</span>
+                    </li>
+                    <li style="margin-top: 10px;">
+                        <strong>Mittlerer Baum (10px Astabstand):</strong>
+                        Perfekt für FAST! → <span style="color: #00ff00;">ERKANNT! ✅</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SEKTION 3: Die Lösung mit Pyramide -->
+        <div class="section full">
+            <div class="info">
+                <h3>✅ Die Lösung: Bildpyramide mit 8 Stufen</h3>
+                <p>
+                    Statt ein Bild zu analysieren, erstellen wir <strong>8 Versionen in unterschiedlichen Größen</strong>:
+                </p>
+                <div class="pyramid-grid">
+                    <div class="pyramid-item">
+                        <h4>Stufe 0</h4>
+                        <p style="font-size: 0.85em;">800×400</p>
+                        <canvas id="pyr0" class="pyramid-canvas"></canvas>
+                        <p style="font-size: 0.8em; margin-top: 10px; color: #ffff00;">Großer Baum optimal</p>
+                    </div>
+                    <div class="pyramid-item">
+                        <h4>Stufe 3</h4>
+                        <p style="font-size: 0.85em;">463×231</p>
+                        <canvas id="pyr3" class="pyramid-canvas"></canvas>
+                        <p style="font-size: 0.8em; margin-top: 10px; color: #ffff00;">Mittler Baum optimal</p>
+                    </div>
+                    <div class="pyramid-item">
+                        <h4>Stufe 5</h4>
+                        <p style="font-size: 0.85em;">280×140</p>
+                        <canvas id="pyr5" class="pyramid-canvas"></canvas>
+                        <p style="font-size: 0.8em; margin-top: 10px;">Smaller scale</p>
+                    </div>
+                    <div class="pyramid-item">
+                        <h4>Stufe 7</h4>
+                        <p style="font-size: 0.85em;">170×85</p>
+                        <canvas id="pyr7" class="pyramid-canvas"></canvas>
+                        <p style="font-size: 0.8em; margin-top: 10px; color: #ffff00;">Kleiner Baum optimal</p>
+                    </div>
+                </div>
+                <p style="margin-top: 20px;">
+                    <strong>Ergebnis:</strong> Auf jeder Stufe werden andere Features optimal erkannt!
+                    FAST findet den großen Baum auf Stufe 0, den mittleren auf Stufe 3, und den kleinen auf Stufe 7.
+                </p>
+            </div>
+        </div>
+
+        <!-- SEKTION 4: Legende -->
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color green"></div>
+                <span>Optimal erkannt ✅</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color red"></div>
+                <span>Nicht erkannt ❌</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color yellow"></div>
+                <span>Wird auf dieser Stufe gut erkannt</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const treeSlider = document.getElementById('treeSlider');
+        const treeStatus = document.getElementById('treeStatus');
+        const treeSizeSpan = document.getElementById('treeSize');
+        const treeCanvas = document.getElementById('treeCanvas');
+        const ctx = treeCanvas.getContext('2d');
+
+        function drawTree(canvas, astAbstand, scale = 1) {
+            const c = canvas.getContext('2d');
+            c.clearRect(0, 0, canvas.width, canvas.height);
+            c.fillStyle = '#1a1a1a';
+            c.fillRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scaledAbstand = astAbstand * scale;
+
+            // Baumstamm
+            c.fillStyle = '#8B4513';
+            c.fillRect(centerX - 10, centerY, 20, 60);
+
+            // Äste (Ecken)
+            const positions = [
+                [-scaledAbstand, -scaledAbstand], [scaledAbstand, -scaledAbstand],
+                [-scaledAbstand, scaledAbstand], [scaledAbstand, scaledAbstand],
+                [0, -scaledAbstand], [0, scaledAbstand],
+                [-scaledAbstand, 0], [scaledAbstand, 0]
+            ];
+
+            positions.forEach(([dx, dy]) => {
+                c.fillStyle = '#00ff00';
+                c.beginPath();
+                c.arc(centerX + dx, centerY + dy, 3, 0, Math.PI * 2);
+                c.fill();
+            });
+
+            // FAST-Kreis
+            c.strokeStyle = '#ffff00';
+            c.lineWidth = 2;
+            c.beginPath();
+            c.arc(centerX, centerY, 3 * scale, 0, Math.PI * 2);
+            c.stroke();
+        }
+
+        function updateTree() {
+            const astAbstand = parseInt(treeSlider.value);
+            treeSizeSpan.textContent = astAbstand;
+
+            drawTree(treeCanvas, astAbstand);
+
+            // Status bestimmen
+            let status = '';
+            let statusEl = treeStatus;
+
+            if (astAbstand >= 9 && astAbstand <= 12) {
+                status = '✅ OPTIMAL! Features passen perfekt zum 3px FAST-Radius';
+                statusEl.className = 'status good';
+            } else if (astAbstand < 9) {
+                status = '❌ ZU DICHT! Ecken sind zu nah beieinander - FAST erkennt keine klare Ecke';
+                statusEl.className = 'status bad';
+            } else {
+                status = '❌ ZU WEIT! Ecken sind zu weit auseinander - nicht genug zusammenhängende Pixel';
+                statusEl.className = 'status bad';
+            }
+
+            statusEl.textContent = status;
+
+            // Pyramide aktualisieren
+            if (astAbstand >= 9 && astAbstand <= 12) {
+                // Mittlerer Baum optimal
+                drawTree(document.getElementById('pyr3'), astAbstand, 1, true);
+                drawTree(document.getElementById('pyr0'), astAbstand, 1.5);
+                drawTree(document.getElementById('pyr5'), astAbstand, 0.8);
+                drawTree(document.getElementById('pyr7'), astAbstand, 0.5);
+            } else if (astAbstand > 12) {
+                // Großer Baum - optimal auf Stufe 0
+                drawTree(document.getElementById('pyr0'), astAbstand, 1, true);
+                drawTree(document.getElementById('pyr3'), astAbstand, 0.6);
+                drawTree(document.getElementById('pyr5'), astAbstand, 0.4);
+                drawTree(document.getElementById('pyr7'), astAbstand, 0.25);
+            } else {
+                // Kleiner Baum - optimal auf Stufe 7
+                drawTree(document.getElementById('pyr0'), astAbstand, 1);
+                drawTree(document.getElementById('pyr3'), astAbstand, 0.6);
+                drawTree(document.getElementById('pyr5'), astAbstand, 0.4);
+                drawTree(document.getElementById('pyr7'), astAbstand, 0.25, true);
+            }
+        }
+
+        treeSlider.addEventListener('input', updateTree);
+
+        // Initial render
+        updateTree();
+    </script>
+</body>
+</html>

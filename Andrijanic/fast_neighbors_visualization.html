@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAST 16 Nachbarn - Feature Erkennung</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00ff00;
+        }
+        .intro {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #00ff00;
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            border: 2px solid #00ff00;
+        }
+        .section h2 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .info-box {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 3px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            border: 2px solid #444;
+            width: 100%;
+            height: auto;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .result-box {
+            background: #0a3a0a;
+            padding: 15px;
+            border-radius: 3px;
+            text-align: center;
+            border: 2px solid #00ff00;
+        }
+        .result-box.failed {
+            background: #3a0a0a;
+            border-color: #ff6644;
+            color: #ff6644;
+        }
+        .result-box strong {
+            font-size: 1.2em;
+        }
+        .stats {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+        .legend {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 30px;
+            border-left: 4px solid #ffff00;
+        }
+        .legend h3 {
+            color: #ffff00;
+            margin-bottom: 10px;
+        }
+        .legend-items {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+        .explanation {
+            background: #2a3a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 30px;
+            border-left: 4px solid #00ff00;
+        }
+        .explanation h3 {
+            color: #00ff00;
+            margin-bottom: 15px;
+        }
+        .explanation ul {
+            margin-left: 20px;
+        }
+        .explanation li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FAST Detektor: 16 Nachbarn um eine Feature</h1>
+
+        <div class="intro">
+            <p><strong>Feature 363 aus dem echten Bild</strong> - erkannt auf Stufe 5 & 7 ✅</p>
+            <p style="margin-top: 10px; font-size: 0.95em;">
+                <strong>Die 16 grünen Punkte:</strong> Das sind die Nachbarn im FAST-Radius (3 Pixel)
+            </p>
+            <p style="margin-top: 8px; font-size: 0.9em; color: #ffff00;">
+                Wenn 9+ davon <strong>HELLER</strong> oder <strong>DUNKLER</strong> sind → Feature erkannt! ✅
+            </p>
+        </div>
+
+        <div class="grid">
+            <!-- STUFE 7 -->
+            <div class="section">
+                <h2>Stufe 7 (k=7) - Klein</h2>
+                <div class="info-box">
+                    <p><strong>Größe:</strong> 223×111 Pixel</p>
+                    <p><strong>Skalierung:</strong> 3.58× verkleinert</p>
+                    <p><strong>FAST-Radius:</strong> 3 Pixel</p>
+                </div>
+                <canvas id="canvas7" width="500" height="250"></canvas>
+                <div class="result-box">
+                    <strong id="result7">Berechnung...</strong>
+                    <div class="stats">
+                        <p>Heller: <span id="lighter7">?</span>/16</p>
+                        <p>Dunkler: <span id="darker7">?</span>/16</p>
+                        <p style="color: #ffff00; font-weight: bold;">Max: <span id="max7">?</span>/16</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STUFE 1 -->
+            <div class="section">
+                <h2>Stufe 1 (k=1) - Größer</h2>
+                <div class="info-box">
+                    <p><strong>Größe:</strong> 666×333 Pixel</p>
+                    <p><strong>Skalierung:</strong> 1.2× verkleinert</p>
+                    <p><strong>FAST-Radius:</strong> 3 Pixel (gleich!)</p>
+                </div>
+                <canvas id="canvas1" width="500" height="250"></canvas>
+                <div class="result-box failed">
+                    <strong id="result1">Berechnung...</strong>
+                    <div class="stats">
+                        <p>Heller: <span id="lighter1">?</span>/16</p>
+                        <p>Dunkler: <span id="darker1">?</span>/16</p>
+                        <p style="color: #ffff00; font-weight: bold;">Max: <span id="max1">?</span>/16</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="legend">
+            <h3>Farbkodierung:</h3>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffaa00;"></div>
+                    <span>Orange = Center-Pixel</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #00ff00;"></div>
+                    <span>Grün = FAST-Nachbarn</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffff00;"></div>
+                    <span>Gelber Kreis = 3px Radius</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="explanation">
+            <h3>Warum unterschiedliche Ergebnisse?</h3>
+            <ul>
+                <li>
+                    <strong>Stufe 7 (klein):</strong> Die 16 Nachbarn (grüne Punkte) sehen eine <strong>klare Kante</strong>.
+                    Viele sind heller oder dunkler. → <strong>9+ konsistent</strong> → FEATURE erkannt! ✅
+                </li>
+                <li>
+                    <strong>Stufe 1 (groß):</strong> Die 16 Nachbarn sind relativ zu den Features <strong>zu dicht beieinander</strong>.
+                    Sie sehen <strong>gemischte Pixel</strong> (Hell, Dunkel, Ähnlich). → <strong>Weniger als 9 konsistent</strong> → KEINE FEATURE! ❌
+                </li>
+                <li>
+                    <strong>FAST-Radius bleibt gleich:</strong> Immer 3 Pixel, aber die relative Position zu Features ändert sich!
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const FAST_CIRCLE = [
+            {x: 0, y: -3},   {x: 1, y: -3},   {x: 2, y: -2},   {x: 3, y: -1},
+            {x: 3, y: 0},    {x: 3, y: 1},    {x: 2, y: 2},    {x: 1, y: 3},
+            {x: 0, y: 3},    {x: -1, y: 3},   {x: -2, y: 2},   {x: -3, y: 1},
+            {x: -3, y: 0},   {x: -3, y: -1},  {x: -2, y: -2},  {x: -1, y: -3}
+        ];
+
+        const img = new Image();
+        img.onload = function() {
+            analyze();
+        };
+        img.src = '../cam0/1614256757008110848.png';
+
+        function getPixelBrightness(ctx, x, y) {
+            try {
+                const imageData = ctx.getImageData(Math.round(x), Math.round(y), 1, 1);
+                const data = imageData.data;
+                return (data[0] + data[1] + data[2]) / 3;
+            } catch (e) {
+                return 128;
+            }
+        }
+
+        function analyze() {
+            const k7_scale = 3.583;
+            const k1_scale = 1.2;
+            const original_w = 800;
+            const original_h = 400;
+
+            // ECHTE Feature 363 aus JSON - erkannt auf Stufen 5 & 7
+            const x_orig = 338;
+            const y_orig = 161;
+
+            // Berechne Positionen auf jeder Stufe
+            const x7 = x_orig / k7_scale;
+            const y7 = y_orig / k7_scale;
+            const x1 = x_orig / k1_scale;
+            const y1 = y_orig / k1_scale;
+
+            // Canvas
+            const canvas7 = document.getElementById('canvas7');
+            const canvas1 = document.getElementById('canvas1');
+            const ctx7 = canvas7.getContext('2d');
+            const ctx1 = canvas1.getContext('2d');
+
+            // Größen
+            const s7_w = Math.round(original_w / k7_scale);
+            const s7_h = Math.round(original_h / k7_scale);
+            const s1_w = Math.round(original_w / k1_scale);
+            const s1_h = Math.round(original_h / k1_scale);
+
+            // WICHTIG: Zeichne mit drawImage mit den richtigen Größen
+            ctx7.drawImage(img, 0, 0, original_w, original_h, 0, 0, s7_w, s7_h);
+            ctx1.drawImage(img, 0, 0, original_w, original_h, 0, 0, s1_w, s1_h);
+
+            // Analysiere FAST
+            const {lighter: l7, darker: d7} = analyzeFast(ctx7, x7, y7, s7_w, s7_h);
+            const {lighter: l1, darker: d1} = analyzeFast(ctx1, x1, y1, s1_w, s1_h);
+
+            // Zeichne FAST-Nachbarn
+            drawFastVisualization(ctx7, x7, y7, s7_w, s7_h, canvas7, l7, d7);
+            drawFastVisualization(ctx1, x1, y1, s1_w, s1_h, canvas1, l1, d1);
+
+            // Update Text
+            const detected7 = Math.max(l7, d7) >= 9;
+            const detected1 = Math.max(l1, d1) >= 9;
+
+            document.getElementById('lighter7').textContent = l7;
+            document.getElementById('darker7').textContent = d7;
+            document.getElementById('max7').textContent = Math.max(l7, d7);
+            document.getElementById('result7').textContent = detected7 ?
+                'FEATURE ERKANNT! ✅ (' + Math.max(l7, d7) + '/16 konsistent)' :
+                'Nicht erkannt (' + Math.max(l7, d7) + '/16)';
+
+            document.getElementById('lighter1').textContent = l1;
+            document.getElementById('darker1').textContent = d1;
+            document.getElementById('max1').textContent = Math.max(l1, d1);
+            document.getElementById('result1').textContent = detected1 ?
+                'FEATURE ERKANNT! ✅ (' + Math.max(l1, d1) + '/16 konsistent)' :
+                'Nicht erkannt ❌ (' + Math.max(l1, d1) + '/16)';
+        }
+
+        function analyzeFast(ctx, cx, cy, imgW, imgH) {
+            const threshold = 50;
+            const center = getPixelBrightness(ctx, cx, cy);
+            let lighter = 0, darker = 0;
+
+            FAST_CIRCLE.forEach(n => {
+                const nx = cx + n.x;
+                const ny = cy + n.y;
+
+                if (nx >= 0 && nx < imgW && ny >= 0 && ny < imgH) {
+                    const val = getPixelBrightness(ctx, nx, ny);
+
+                    if (val > center + threshold) lighter++;
+                    else if (val < center - threshold) darker++;
+                }
+            });
+
+            return {lighter, darker};
+        }
+
+        function drawFastVisualization(ctx, cx, cy, imgW, imgH, canvas, lighter, darker) {
+            const scaleX = canvas.width / imgW;
+            const scaleY = canvas.height / imgH;
+
+            // FAST-Radius Kreis (gelb)
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(cx * scaleX, cy * scaleY, 3 * scaleX, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 16 Nachbarn zeichnen (GROSS - 8px Radius!)
+            FAST_CIRCLE.forEach((n, idx) => {
+                const nx = cx + n.x;
+                const ny = cy + n.y;
+
+                if (nx >= 0 && nx < imgW && ny >= 0 && ny < imgH) {
+                    const px = nx * scaleX;
+                    const py = ny * scaleY;
+
+                    // Grüner Kreis für Nachbar (GROSS!)
+                    ctx.fillStyle = '#00ff00';
+                    ctx.beginPath();
+                    ctx.arc(px, py, 8, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Weiße Border
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 8, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // Nummer in Schwarz
+                    ctx.fillStyle = '#000';
+                    ctx.font = 'bold 9px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(idx + 1, px, py);
+                }
+            });
+
+            // Center (GROSS Orange - 10px)
+            const centerX = cx * scaleX;
+            const centerY = cy * scaleY;
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Orange Border
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Center Nummer
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('C', centerX, centerY);
+        }
+    </script>
+</body>
+</html>

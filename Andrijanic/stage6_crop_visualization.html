@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feature auf Stufe 6 - 20x20 Ausschnitt</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00ff00;
+        }
+        .intro {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #00ff00;
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            border: 2px solid #00ff00;
+        }
+        .section h2 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .info-box {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 3px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        .info-box p {
+            margin: 5px 0;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            border: 2px solid #444;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto 15px;
+            border-radius: 3px;
+            image-rendering: pixelated;
+        }
+        .result-box {
+            background: #0a3a0a;
+            padding: 15px;
+            border-radius: 3px;
+            text-align: center;
+            border: 2px solid #00ff00;
+        }
+        .result-box strong {
+            font-size: 1.2em;
+        }
+        .stats {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+        .explanation {
+            background: #2a3a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 30px;
+            border-left: 4px solid #00ff00;
+        }
+        .explanation h3 {
+            color: #00ff00;
+            margin-bottom: 15px;
+        }
+        .explanation ul {
+            margin-left: 20px;
+        }
+        .explanation li {
+            margin: 8px 0;
+        }
+        .highlight {
+            color: #ffff00;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Feature auf Stufe 6 - 20×20 Pixel Ausschnitt</h1>
+
+        <div class="intro">
+            <p><strong>Feature 363 auf Stufe 6 (k=6):</strong> Nur der direkte Ausschnitt, OHNE zurück-skalieren</p>
+            <p style="margin-top: 10px; font-size: 0.95em;">
+                Das ist genau, wie die Feature im kleinen Bild erkannt wird! 🔍
+            </p>
+        </div>
+
+        <div class="grid">
+            <!-- Ausschnitt Stufe 6 -->
+            <div class="section">
+                <h2>Stufe 6 (k=6) - Ausschnitt</h2>
+                <div class="info-box">
+                    <p><strong>Größe:</strong> 20×20 Pixel</p>
+                    <p><strong>Aus Bild:</strong> 267×133 (k=6)</p>
+                    <p><strong>Feature Position:</strong> im Zentrum</p>
+                </div>
+                <canvas id="canvas6" width="400" height="400"></canvas>
+                <div class="result-box">
+                    <strong id="result6">Berechnung...</strong>
+                    <div class="stats">
+                        <p>Heller: <span id="lighter6">?</span>/16</p>
+                        <p>Dunkler: <span id="darker6">?</span>/16</p>
+                        <p style="color: #ffff00; font-weight: bold;">Max: <span id="max6">?</span>/16</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Stufe 5 zum Vergleich -->
+            <div class="section">
+                <h2>Stufe 5 (k=5) - Zum Vergleich</h2>
+                <div class="info-box">
+                    <p><strong>Größe:</strong> 20×20 Pixel (auch im Original k=5)</p>
+                    <p><strong>Aus Bild:</strong> 321×160 (k=5)</p>
+                    <p><strong>Skalierung:</strong> 2.49×</p>
+                </div>
+                <canvas id="canvas5" width="400" height="400"></canvas>
+                <div class="result-box">
+                    <strong id="result5">Berechnung...</strong>
+                    <div class="stats">
+                        <p>Heller: <span id="lighter5">?</span>/16</p>
+                        <p>Dunkler: <span id="darker5">?</span>/16</p>
+                        <p style="color: #ffff00; font-weight: bold;">Max: <span id="max5">?</span>/16</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="explanation">
+            <h3>💡 Was sehen wir hier?</h3>
+            <ul>
+                <li>
+                    <strong>Stufe 6:</strong> Ein kleiner 20×20 Ausschnitt um die Feature.
+                    Die <span class="highlight">16 grünen Punkte</span> um die orange Feature (C) zeigen die FAST-Nachbarn.
+                </li>
+                <li>
+                    <strong>Erkannt?</strong> Wenn <span class="highlight">9+ davon</span> deutlich heller oder dunkler sind
+                    → <strong>FEATURE ERKANNT!</strong> ✅
+                </li>
+                <li>
+                    <strong>Keine Skalierung:</strong> Das ist das Bild DIREKT von Stufe 6, nicht hochgerechnet!
+                    Das ist was der FAST-Detektor wirklich "sieht".
+                </li>
+                <li>
+                    <strong>Stufe 5 zum Vergleich:</strong> Eine Stufe größer - man sieht, dass die Feature
+                    mehr Kontext hat, aber die FAST-Nachbarn sehen ähnlich aus.
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const FAST_CIRCLE = [
+            {x: 0, y: -3},   {x: 1, y: -3},   {x: 2, y: -2},   {x: 3, y: -1},
+            {x: 3, y: 0},    {x: 3, y: 1},    {x: 2, y: 2},    {x: 1, y: 3},
+            {x: 0, y: 3},    {x: -1, y: 3},   {x: -2, y: 2},   {x: -3, y: 1},
+            {x: -3, y: 0},   {x: -3, y: -1},  {x: -2, y: -2},  {x: -1, y: -3}
+        ];
+
+        const img = new Image();
+        img.onload = function() {
+            analyze();
+        };
+        img.src = '../cam0/1614256757008110848.png';
+
+        function analyze() {
+            const k5_scale = 2.4883;  // 1.2^5
+            const k6_scale = 2.9860;  // 1.2^6
+            const original_w = 800;
+            const original_h = 400;
+
+            // Feature 363 Position im Original
+            const x_orig = 338;
+            const y_orig = 161;
+
+            // Positionen auf den Stufen
+            const x6 = x_orig / k6_scale;
+            const y6 = y_orig / k6_scale;
+            const x5 = x_orig / k5_scale;
+            const y5 = y_orig / k5_scale;
+
+            // Größen
+            const s6_w = Math.round(original_w / k6_scale);
+            const s6_h = Math.round(original_h / k6_scale);
+            const s5_w = Math.round(original_w / k5_scale);
+            const s5_h = Math.round(original_h / k5_scale);
+
+            // Canvas
+            const canvas6 = document.getElementById('canvas6');
+            const canvas5 = document.getElementById('canvas5');
+            const ctx6 = canvas6.getContext('2d');
+            const ctx5 = canvas5.getContext('2d');
+
+            // Zeichne die 20x20 Ausschnitte
+            drawCropCanvas(ctx6, img, original_w, original_h, x6, y6, s6_w, s6_h, canvas6);
+            drawCropCanvas(ctx5, img, original_w, original_h, x5, y5, s5_w, s5_h, canvas5);
+
+            // Analysiere FAST - Center ist jetzt in der Mitte des Canvas
+            const center_canvas = canvas6.width / 2;
+            const {lighter: l6, darker: d6} = analyzeFastOnCanvas(ctx6, center_canvas, center_canvas);
+            const {lighter: l5, darker: d5} = analyzeFastOnCanvas(ctx5, center_canvas, center_canvas);
+
+            // Zeichne FAST-Nachbarn - Center ist in der Mitte des Canvas
+            const center_canvas = canvas6.width / 2;
+            drawFastOnCrop(ctx6, center_canvas, center_canvas, l6, d6);
+            drawFastOnCrop(ctx5, center_canvas, center_canvas, l5, d5);
+
+            // Update Text
+            const detected6 = Math.max(l6, d6) >= 9;
+            const detected5 = Math.max(l5, d5) >= 9;
+
+            document.getElementById('lighter6').textContent = l6;
+            document.getElementById('darker6').textContent = d6;
+            document.getElementById('max6').textContent = Math.max(l6, d6);
+            document.getElementById('result6').textContent = detected6 ?
+                'FEATURE ERKANNT! ✅ (' + Math.max(l6, d6) + '/16)' :
+                'Nicht erkannt (' + Math.max(l6, d6) + '/16)';
+
+            document.getElementById('lighter5').textContent = l5;
+            document.getElementById('darker5').textContent = d5;
+            document.getElementById('max5').textContent = Math.max(l5, d5);
+            document.getElementById('result5').textContent = detected5 ?
+                'FEATURE ERKANNT! ✅ (' + Math.max(l5, d5) + '/16)' :
+                'Nicht erkannt (' + Math.max(l5, d5) + '/16)';
+        }
+
+        function drawCropCanvas(ctx, img, orig_w, orig_h, cx, cy, img_w, img_h, canvas) {
+            // Temp canvas für skaliertes Bild
+            const temp_canvas = document.createElement('canvas');
+            temp_canvas.width = img_w;
+            temp_canvas.height = img_h;
+            const temp_ctx = temp_canvas.getContext('2d');
+            temp_ctx.drawImage(img, 0, 0, orig_w, orig_h, 0, 0, img_w, img_h);
+
+            // Berechne den 20x20 Ausschnitt (±10 um Center)
+            const crop_size = 10;
+            let crop_x = Math.round(cx - crop_size);
+            let crop_y = Math.round(cy - crop_size);
+
+            // Sicherstelle, dass der Ausschnitt im Bild ist
+            crop_x = Math.max(0, Math.min(crop_x, img_w - 20));
+            crop_y = Math.max(0, Math.min(crop_y, img_h - 20));
+
+            // Kopiere Ausschnitt auf Haupt-Canvas (skaliere auf Canvas-Größe)
+            ctx.drawImage(
+                temp_canvas,
+                crop_x, crop_y, 20, 20,  // Quelle: 20x20 Ausschnitt
+                0, 0, canvas.width, canvas.height  // Ziel: ganzer Canvas
+            );
+
+            // Zeichne Raster für bessere Lesbarkeit
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            const grid_size = canvas.width / 20;
+            for (let i = 0; i <= 20; i++) {
+                const pos = grid_size * i;
+                ctx.beginPath();
+                ctx.moveTo(pos, 0);
+                ctx.lineTo(pos, canvas.height);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, pos);
+                ctx.lineTo(canvas.width, pos);
+                ctx.stroke();
+            }
+        }
+
+        function analyzeFastOnCanvas(ctx, cx, cy) {
+            const threshold = 50;
+            const center = getPixelBrightness(ctx, cx, cy);
+            let lighter = 0, darker = 0;
+
+            FAST_CIRCLE.forEach(n => {
+                const nx = cx + n.x;
+                const ny = cy + n.y;
+
+                const val = getPixelBrightness(ctx, nx, ny);
+
+                if (val > center + threshold) lighter++;
+                else if (val < center - threshold) darker++;
+            });
+
+            return {lighter, darker};
+        }
+
+        function getPixelBrightness(ctx, x, y) {
+            try {
+                const imageData = ctx.getImageData(Math.round(x), Math.round(y), 1, 1);
+                const data = imageData.data;
+                return (data[0] + data[1] + data[2]) / 3;
+            } catch (e) {
+                return 128;
+            }
+        }
+
+        function drawFastOnCrop(ctx, cx, cy, lighter, darker) {
+            const pixel_size = cx * 2 / 20;  // Größe eines Pixels im Canvas
+
+            // FAST-Radius Kreis (gelb)
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 3 * pixel_size, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 16 Nachbarn
+            FAST_CIRCLE.forEach((n, idx) => {
+                const px = cx + n.x * pixel_size;
+                const py = cy + n.y * pixel_size;
+
+                // Grüner Kreis
+                ctx.fillStyle = '#00ff00';
+                ctx.beginPath();
+                ctx.arc(px, py, 4 * pixel_size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Nummer
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(idx + 1, px, py);
+            });
+
+            // Center (Orange)
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 5 * pixel_size, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('C', cx, cy);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feature-Beispiel: Stufe 7 → Original</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00ff00;
+            font-size: 2.5em;
+        }
+        .intro {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #00ff00;
+            text-align: center;
+        }
+        .intro h2 {
+            color: #00ff00;
+            margin-bottom: 10px;
+        }
+        .example-info {
+            background: #1a2a1a;
+            padding: 15px;
+            border-radius: 3px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.95em;
+        }
+        .example-info p {
+            margin: 5px 0;
+        }
+        .highlight {
+            color: #ffff00;
+            font-weight: bold;
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+            align-items: center;
+        }
+        .side-container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            border: 2px solid #00ff00;
+        }
+        .side-container h3 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.3em;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            border: 2px solid #444;
+            width: 100%;
+            height: auto;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .info-text {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .arrow {
+            text-align: center;
+            font-size: 3em;
+            color: #ffff00;
+            margin: 20px 0;
+        }
+        .calculation-box {
+            background: #1a2a1a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #ffff00;
+        }
+        .calculation-box h3 {
+            color: #ffff00;
+            margin-bottom: 15px;
+        }
+        .formula {
+            background: #0a0a0a;
+            padding: 15px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 1.1em;
+            text-align: center;
+            margin: 10px 0;
+        }
+        .formula p {
+            margin: 8px 0;
+        }
+        .result {
+            background: #0a3a0a;
+            padding: 12px;
+            border-radius: 3px;
+            margin-top: 10px;
+            border: 2px solid #00ff00;
+        }
+        .explanation {
+            background: #2a3a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 30px;
+            border-left: 3px solid #00ff00;
+        }
+        .explanation h3 {
+            color: #00ff00;
+            margin-bottom: 10px;
+        }
+        .explanation ul {
+            margin-left: 20px;
+            font-size: 0.95em;
+        }
+        .explanation li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Feature-Beispiel aus der Pyramide</h1>
+
+        <div class="intro">
+            <h2>Eine Feature wird auf Stufe 7 erkannt und hochgerechnet</h2>
+            <div class="example-info">
+                <p><strong>Bild:</strong> 1614256757008110848.png</p>
+                <p><strong>Feature ID:</strong> 366</p>
+                <p><strong>Original Position:</strong> <span class="highlight">(622, 223)</span></p>
+                <p><strong>Erkannt auf Stufen:</strong> <span class="highlight">5, 6, 7</span></p>
+                <p><strong>Stärkste auf:</strong> <span class="highlight">Stufe 7</span></p>
+                <p><strong>Response Strength:</strong> 44.00</p>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Stufe 7 -->
+            <div class="side-container">
+                <h3>Stufe 7 (k=7)</h3>
+                <p style="text-align: center; color: #aaa; margin-bottom: 10px; font-size: 0.9em;">
+                    Kleine Version (3.58x verkleinert)<br>
+                    Größe: 223×111 Pixel
+                </p>
+                <canvas id="stage7Canvas" width="400" height="200"></canvas>
+                <div class="info-text">
+                    <p><strong>Feature erkannt bei:</strong></p>
+                    <p style="color: #ffff00; font-weight: bold; font-size: 1.1em;">
+                        (<span id="pos7X">?</span>, <span id="pos7Y">?</span>)
+                    </p>
+                </div>
+            </div>
+
+            <div style="text-align: center;">
+                <div class="arrow">⟹</div>
+                <p style="font-size: 1.2em; color: #ffff00;">
+                    <strong>Hochrechnung<br>mit 1.2^7</strong>
+                </p>
+            </div>
+
+            <!-- Original -->
+            <div class="side-container">
+                <h3>Original Bild (k=0)</h3>
+                <p style="text-align: center; color: #aaa; margin-bottom: 10px; font-size: 0.9em;">
+                    Volle Größe<br>
+                    800×400 Pixel
+                </p>
+                <canvas id="originalCanvas" width="400" height="200"></canvas>
+                <div class="info-text">
+                    <p><strong>Position im Original:</strong></p>
+                    <p style="color: #00ffff; font-weight: bold; font-size: 1.1em;">
+                        (<span id="posOrigX">622</span>, <span id="posOrigY">223</span>)
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Berechnung -->
+        <div class="calculation-box">
+            <h3>📐 Mathematik: Hochrechnung zum Original</h3>
+            <p style="margin-bottom: 15px;">
+                Die Feature wurde auf Stufe 7 erkannt. Um die Position im Original zu berechnen, verwenden wir die Formel:
+            </p>
+            <div class="formula">
+                <p><strong>x<sub>original</sub> = x<sub>k</sub> × 1.2<sup>k</sup></strong></p>
+                <p><strong>y<sub>original</sub> = y<sub>k</sub> × 1.2<sup>k</sup></strong></p>
+            </div>
+            <div class="formula">
+                <p><strong>Konkret für k=7:</strong></p>
+                <p>x<sub>original</sub> = <span id="calcX1">?</span> × 1.2<sup>7</sup> = <span id="calcX1a">?</span> × 3.583 = <span id="calcXResult" style="color: #ffff00;">622</span></p>
+                <p>y<sub>original</sub> = <span id="calcY1">?</span> × 1.2<sup>7</sup> = <span id="calcY1a">?</span> × 3.583 = <span id="calcYResult" style="color: #ffff00;">223</span></p>
+            </div>
+            <div class="result">
+                <p style="text-align: center; font-size: 1.1em;">
+                    <strong>Resultat:</strong> Feature im Original bei <span class="highlight">(622, 223)</span> ✓
+                </p>
+            </div>
+        </div>
+
+        <!-- Erklärung -->
+        <div class="explanation">
+            <h3>💡 Warum funktioniert das?</h3>
+            <ul>
+                <li>
+                    <strong>Stufe 7:</strong> Das Bild ist 3.58× kleiner (1.2^7). Features sind relativ näher beieinander.
+                </li>
+                <li>
+                    <strong>FAST erkennt:</strong> Die Feature wird auf dieser kleinen Stufe erkannt, weil die 16 FAST-Nachbarn genug Kontrast haben.
+                </li>
+                <li>
+                    <strong>Hochrechnung:</strong> Mit Multiplikation × 1.2^7 wissen wir GENAU wo diese Feature im Original ist.
+                </li>
+                <li>
+                    <strong>Bildpyramide:</strong> So können wir Features auf ALLEN Größen erkennen - große auf frühen Stufen, kleine auf späten Stufen!
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const img = new Image();
+
+        img.onload = function() {
+            drawPyramideAndOriginal();
+        };
+
+        img.src = '../cam0/1614256757008110848.png';
+
+        function drawPyramideAndOriginal() {
+            const k = 7;
+            const scale = Math.pow(1.2, k);
+            const original_w = 800;
+            const original_h = 400;
+
+            // Feature Positionen
+            const x_original = 622;
+            const y_original = 223;
+            const x_k = Math.round(x_original / scale);
+            const y_k = Math.round(y_original / scale);
+
+            // Stufe 7 Canvas
+            const stage7Canvas = document.getElementById('stage7Canvas');
+            const stage7_w = Math.round(original_w / scale);
+            const stage7_h = Math.round(original_h / scale);
+
+            const ctx7 = stage7Canvas.getContext('2d');
+            ctx7.drawImage(img, 0, 0, stage7_w, stage7_h);
+
+            // Markiere Feature auf Stufe 7
+            // RICHTIG: Erst in Prozent umwandeln, dann auf Canvas skalieren
+            const markerX7 = (x_k / stage7_w) * stage7Canvas.width;
+            const markerY7 = (y_k / stage7_h) * stage7Canvas.height;
+
+            ctx7.fillStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx7.beginPath();
+            ctx7.arc(markerX7, markerY7, 15, 0, Math.PI * 2);
+            ctx7.fill();
+
+            ctx7.strokeStyle = '#00ffff';
+            ctx7.lineWidth = 3;
+            ctx7.beginPath();
+            ctx7.arc(markerX7, markerY7, 15, 0, Math.PI * 2);
+            ctx7.stroke();
+
+            ctx7.fillStyle = '#00ffff';
+            ctx7.beginPath();
+            ctx7.arc(markerX7, markerY7, 5, 0, Math.PI * 2);
+            ctx7.fill();
+
+            // Original Canvas
+            const originalCanvas = document.getElementById('originalCanvas');
+            const ctx_orig = originalCanvas.getContext('2d');
+            ctx_orig.drawImage(img, 0, 0, originalCanvas.width, originalCanvas.height);
+
+            // Markiere Feature im Original
+            const markerX_orig = (x_original / original_w) * originalCanvas.width;
+            const markerY_orig = (y_original / original_h) * originalCanvas.height;
+
+            ctx_orig.fillStyle = 'rgba(0, 255, 0, 0.2)';
+            ctx_orig.beginPath();
+            ctx_orig.arc(markerX_orig, markerY_orig, 20, 0, Math.PI * 2);
+            ctx_orig.fill();
+
+            ctx_orig.strokeStyle = '#00ff00';
+            ctx_orig.lineWidth = 3;
+            ctx_orig.beginPath();
+            ctx_orig.arc(markerX_orig, markerY_orig, 20, 0, Math.PI * 2);
+            ctx_orig.stroke();
+
+            ctx_orig.fillStyle = '#00ff00';
+            ctx_orig.beginPath();
+            ctx_orig.arc(markerX_orig, markerY_orig, 6, 0, Math.PI * 2);
+            ctx_orig.fill();
+
+            // Update Text
+            document.getElementById('pos7X').textContent = Math.round(x_k);
+            document.getElementById('pos7Y').textContent = Math.round(y_k);
+            document.getElementById('calcX1').textContent = Math.round(x_k);
+            document.getElementById('calcY1').textContent = Math.round(y_k);
+            document.getElementById('calcX1a').textContent = scale.toFixed(3);
+            document.getElementById('calcY1a').textContent = scale.toFixed(3);
+        }
+    </script>
+</body>
+</html>

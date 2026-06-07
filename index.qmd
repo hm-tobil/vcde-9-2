@@ -339,6 +339,14 @@ Der Gauss-Filter glättet das Bild, um hochfrequentes Rauschen zu reduzieren, w�
 #### Schritt 3: Bildpyramide (Multi-Skalenerkennung)
 Eine Bildpyramide ist eine Sequenz von Bildern, die progressiv verkleinert werden (üblicherweise um Faktor 1.2).
 
+**Interaktive Visualisierung:** Bewegen Sie den Schieberegler, um die verschiedenen Pyramidenlevel zu sehen.
+
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <iframe src="Andrijanic/bildpyramide_erklaerung.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="Bildpyramide Interaktive Erklärung"></iframe>
+</div>
+```
+
 **Ziel:** Features auf verschiedenen Skalierungsstufen erkennen
 - Große Features auf höheren Ebenen
 - Kleine Features auf unteren Ebenen
@@ -350,6 +358,12 @@ Eine Bildpyramide ist eine Sequenz von Bildern, die progressiv verkleinert werde
 Der FAST (Features from Accelerated Segment Test) Detektor identifiziert Ecken durch schnelle Pixelvergleiche im 16er-Kreis um jeden Kandidaten.
 
 **Regel:** Eine Ecke liegt vor, wenn mindestens 9 der 16 Nachbar-Pixel konsistent heller oder dunkler als der Center-Pixel sind (mit Threshold).
+
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <iframe src="Andrijanic/fast_detector_visualization.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="FAST Detektor Visualisierung"></iframe>
+</div>
+```
 
 **Vorteil:** Sehr schnell, daher ideal für Echtzeit-SLAM.
 :::
@@ -375,7 +389,26 @@ Der Harris Corner Detector bewertet Corners robuster als reiner FAST durch eine 
 
 **Formel:** $R = \det(M) - k \cdot \text{tr}(M)^2$ mit M = Gradient-Strukturmatrix
 
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <iframe src="Andrijanic/feature_example_visualization.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="Feature Beispiel Visualisierung"></iframe>
+</div>
+```
+
 **Vorteil:** Robuster gegen Rotation und Skalierung als FAST allein.
+:::
+
+::: {.vslam-slide}
+#### Praktisches Beispiel: Feature auf echter Szene
+Echte Beispiel aus dem Datensatz:
+
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <iframe src="Andrijanic/pyramid_real_example.html" style="width: 100%; height: 600px; border: 2px solid #00ff00; border-radius: 5px;" title="Pyramid Real Beispiel"></iframe>
+</div>
+```
+
+Diese Visualisierung zeigt, wie die Features tatsächlich in einer echten Szene erkannt werden.
 :::
 
 ::: {.vslam-slide}
@@ -397,7 +430,7 @@ Zusammenfassung aller Schritte von Rohbild zu finalen Features:
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 11</span>
+<span class="vslam-counter">Slide 1 / 10</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 

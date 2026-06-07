@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bildpyramide - Echtes Beispiel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00ff00;
+        }
+        .intro-box {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #00ff00;
+        }
+        .pyramid-section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border: 2px solid #00ff00;
+        }
+        .pyramid-section h2 {
+            color: #00ff00;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .pyramid-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .pyramid-item {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+        .pyramid-item h4 {
+            color: #00ff00;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .pyramid-canvas {
+            display: block;
+            background: #0a0a0a;
+            border: 1px solid #444;
+            width: 100%;
+            height: auto;
+            margin-bottom: 8px;
+            border-radius: 3px;
+        }
+        .pyramid-info {
+            font-size: 0.8em;
+            text-align: center;
+            color: #aaa;
+        }
+        .example-section {
+            background: #1a2a1a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border-left: 4px solid #ffff00;
+        }
+        .example-section h3 {
+            color: #ffff00;
+            margin-bottom: 15px;
+        }
+        .example-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .example-item {
+            background: #0a1a0a;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .example-item h4 {
+            color: #ffff00;
+            margin-bottom: 10px;
+        }
+        .example-canvas {
+            display: block;
+            background: #000;
+            border: 2px solid #444;
+            width: 100%;
+            height: auto;
+            margin-bottom: 10px;
+            border-radius: 3px;
+        }
+        .calculation-box {
+            background: #0a0a0a;
+            padding: 12px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        .calculation-box p {
+            margin: 5px 0;
+        }
+        .highlight {
+            color: #ffff00;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏢 Bildpyramide - Echtes Beispiel</h1>
+
+        <div class="intro-box">
+            <h3 style="color: #00ff00; margin-bottom: 10px;">Wie funktioniert das in der Praxis?</h3>
+            <p>
+                Wir nehmen ein echtes Bild (Parkplatz) und erstellen eine 8-stufige Pyramide mit 1.2^k Skalierung.
+                Dann finden wir <strong>ein Feature</strong> in einer kleinen Stufe und berechnen, wo es im Original ist!
+            </p>
+        </div>
+
+        <!-- Pyramide -->
+        <div class="pyramid-section">
+            <h2>📊 8-stufige Bildpyramide (1.2^k)</h2>
+            <p style="text-align: center; margin-bottom: 20px; color: #ccc;">
+                Das echte Bild in verschiedenen Skalierungen. Je kleiner die Stufe, desto kleinere Features können erkannt werden.
+            </p>
+            <div class="pyramid-grid">
+                <div class="pyramid-item">
+                    <h4>Stufe 0 (k=0)</h4>
+                    <canvas id="pyr0" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p>Original</p>
+                        <p style="color: #4488ff;">1.2^0 = 1.0</p>
+                    </div>
+                </div>
+                <div class="pyramid-item">
+                    <h4>Stufe 1 (k=1)</h4>
+                    <canvas id="pyr1" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p>Verkleinert</p>
+                        <p style="color: #4488ff;">1.2^1 = 1.2</p>
+                    </div>
+                </div>
+                <div class="pyramid-item">
+                    <h4>Stufe 2 (k=2)</h4>
+                    <canvas id="pyr2" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p>Verkleinert</p>
+                        <p style="color: #4488ff;">1.2^2 = 1.44</p>
+                    </div>
+                </div>
+                <div class="pyramid-item">
+                    <h4>Stufe 3 (k=3)</h4>
+                    <canvas id="pyr3" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p>Verkleinert</p>
+                        <p style="color: #4488ff;">1.2^3 = 1.73</p>
+                    </div>
+                </div>
+                <div class="pyramid-item">
+                    <h4>Stufe 4 (k=4)</h4>
+                    <canvas id="pyr4" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p>Verkleinert</p>
+                        <p style="color: #4488ff;">1.2^4 = 2.07</p>
+                    </div>
+                </div>
+                <div class="pyramid-item">
+                    <h4>Stufe 5 (k=5)</h4>
+                    <canvas id="pyr5" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p>Verkleinert</p>
+                        <p style="color: #4488ff;">1.2^5 = 2.49</p>
+                    </div>
+                </div>
+                <div class="pyramid-item">
+                    <h4>Stufe 6 (k=6)</h4>
+                    <canvas id="pyr6" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p>Sehr klein</p>
+                        <p style="color: #4488ff;">1.2^6 = 2.99</p>
+                    </div>
+                </div>
+                <div class="pyramid-item">
+                    <h4>Stufe 7 (k=7)</h4>
+                    <canvas id="pyr7" class="pyramid-canvas" width="200" height="150"></canvas>
+                    <div class="pyramid-info">
+                        <p style="color: #ffff00;"><strong>⭐ Hier finden wir Feature!</strong></p>
+                        <p style="color: #4488ff;">1.2^7 = 3.58</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Praktisches Beispiel -->
+        <div class="example-section">
+            <h3>🎯 Praktisches Beispiel: Eine Feature hochrechnen</h3>
+            <p style="margin-bottom: 15px;">
+                Wir finden eine Feature (z.B. eine Ecke) in <strong>Stufe 7</strong> und berechnen, wo sie im Original ist!
+            </p>
+
+            <div class="example-grid">
+                <!-- Kleine Stufe -->
+                <div class="example-item">
+                    <h4>Stufe 7 (k=7) - Klein</h4>
+                    <canvas id="exampleSmall" class="example-canvas" width="300" height="225"></canvas>
+                    <p style="color: #aaa; font-size: 0.9em;">
+                        Feature erkannt bei: <span class="highlight" id="smallPos">(x, y)</span>
+                    </p>
+                    <div class="calculation-box">
+                        <p><strong>Wo finden wir die Feature?</strong></p>
+                        <p style="margin-top: 8px;">In diesem kleinen Bild (Stufe 7) sehen wir Ecken und Kanten deutlich!</p>
+                    </div>
+                </div>
+
+                <!-- Hochrechnung zum Original -->
+                <div class="example-item">
+                    <h4>Original (k=0) - Hochgerechnet</h4>
+                    <canvas id="exampleLarge" class="example-canvas" width="300" height="225"></canvas>
+                    <p style="color: #aaa; font-size: 0.9em;">
+                        Position im Original: <span class="highlight" id="largePos">(x, y)</span>
+                    </p>
+                    <div class="calculation-box">
+                        <p><strong>Hochrechnung mit Formel:</strong></p>
+                        <p style="margin-top: 8px; color: #ffff00;">x_original = x_k × 1.2^k</p>
+                        <p id="formulaResult" style="margin-top: 8px; color: #4488ff;">Berechnung...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: #0a1a0a; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 3px solid #00ff00;">
+                <p style="color: #00ff00; margin-bottom: 10px;"><strong>💡 Was passiert hier?</strong></p>
+                <ul style="margin-left: 20px; font-size: 0.95em;">
+                    <li>In <strong>Stufe 7</strong> (kleine Bild) erkennt der Detektor eine Feature leicht</li>
+                    <li>Mit <strong>1.2^7 ≈ 3.58</strong> berechnen wir die echte Position im Original</li>
+                    <li>So findet ORB-SLAM Features auf <strong>allen Skalen</strong> und weiß <strong>genau wo sie sind</strong>! 🎯</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Lade das echte Bild
+        const img = new Image();
+        img.onload = function() {
+            drawPyramid();
+            drawExample();
+        };
+        img.src = '../cam0/1614256757008110848.png';
+
+        function scaleImage(width, height, scale) {
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(width / scale);
+            canvas.height = Math.round(height / scale);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            return canvas;
+        }
+
+        function drawPyramid() {
+            const scales = [1.0, 1.2, 1.44, 1.728, 2.074, 2.488, 2.986, 3.583];
+            const canvasIds = ['pyr0', 'pyr1', 'pyr2', 'pyr3', 'pyr4', 'pyr5', 'pyr6', 'pyr7'];
+
+            scales.forEach((scale, idx) => {
+                const scaledCanvas = scaleImage(img.width, img.height, scale);
+                const canvas = document.getElementById(canvasIds[idx]);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(scaledCanvas, 0, 0, canvas.width, canvas.height);
+            });
+        }
+
+        function drawExample() {
+            // Stufe 7 (kleine Version)
+            const scale7 = 3.583;
+            const smallCanvas = scaleImage(img.width, img.height, scale7);
+            const exSmall = document.getElementById('exampleSmall');
+            const ctxSmall = exSmall.getContext('2d');
+            ctxSmall.drawImage(smallCanvas, 0, 0, exSmall.width, exSmall.height);
+
+            // Feature Position in Stufe 7 (irgendwo in der Mitte - Ecke eines Autos)
+            const featureX_k7 = Math.round(smallCanvas.width * 0.45);
+            const featureY_k7 = Math.round(smallCanvas.height * 0.55);
+
+            // Markiere Feature in Stufe 7
+            ctxSmall.fillStyle = '#ffff00';
+            ctxSmall.beginPath();
+            ctxSmall.arc(
+                (featureX_k7 / smallCanvas.width) * exSmall.width,
+                (featureY_k7 / smallCanvas.height) * exSmall.height,
+                8,
+                0,
+                Math.PI * 2
+            );
+            ctxSmall.fill();
+
+            ctxSmall.strokeStyle = '#ffff00';
+            ctxSmall.lineWidth = 2;
+            ctxSmall.beginPath();
+            ctxSmall.arc(
+                (featureX_k7 / smallCanvas.width) * exSmall.width,
+                (featureY_k7 / smallCanvas.height) * exSmall.height,
+                15,
+                0,
+                Math.PI * 2
+            );
+            ctxSmall.stroke();
+
+            // Hochrechnung zum Original
+            const k = 7;
+            const scale = Math.pow(1.2, k);
+            const featureX_original = Math.round(featureX_k7 * scale);
+            const featureY_original = Math.round(featureY_k7 * scale);
+
+            // Zeichne Original mit markierter Feature
+            const exLarge = document.getElementById('exampleLarge');
+            const ctxLarge = exLarge.getContext('2d');
+            ctxLarge.drawImage(img, 0, 0, exLarge.width, exLarge.height);
+
+            // Berechne Position im Canvas
+            const posX = (featureX_original / img.width) * exLarge.width;
+            const posY = (featureY_original / img.height) * exLarge.height;
+
+            // Markiere Feature im Original
+            ctxLarge.fillStyle = 'rgba(0, 255, 255, 0.3)';
+            ctxLarge.beginPath();
+            ctxLarge.arc(posX, posY, 25, 0, Math.PI * 2);
+            ctxLarge.fill();
+
+            ctxLarge.strokeStyle = '#00ffff';
+            ctxLarge.lineWidth = 3;
+            ctxLarge.beginPath();
+            ctxLarge.arc(posX, posY, 25, 0, Math.PI * 2);
+            ctxLarge.stroke();
+
+            ctxLarge.fillStyle = '#00ffff';
+            ctxLarge.beginPath();
+            ctxLarge.arc(posX, posY, 6, 0, Math.PI * 2);
+            ctxLarge.fill();
+
+            // Update Text
+            document.getElementById('smallPos').textContent = `(${featureX_k7}, ${featureY_k7})`;
+            document.getElementById('largePos').textContent = `(${featureX_original}, ${featureY_original})`;
+            document.getElementById('formulaResult').innerHTML =
+                `<strong>x_original</strong> = ${featureX_k7} × 1.2^7 = ${featureX_k7} × ${scale.toFixed(2)} = <span style="color: #ffff00;">${featureX_original}</span><br>` +
+                `<strong>y_original</strong> = ${featureY_k7} × 1.2^7 = ${featureY_k7} × ${scale.toFixed(2)} = <span style="color: #ffff00;">${featureY_original}</span>`;
+        }
+    </script>
+</body>
+</html>

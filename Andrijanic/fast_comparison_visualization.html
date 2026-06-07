@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAST Detektor - Warum Bildpyramide notwendig ist</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00ff00;
+            font-size: 2em;
+        }
+        .intro {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #ffff00;
+            text-align: center;
+        }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .stage-section {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 5px;
+            border: 2px solid #00ff00;
+        }
+        .stage-section.failed {
+            border-color: #ff6644;
+        }
+        .stage-header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .stage-header h2 {
+            font-size: 1.4em;
+            margin-bottom: 5px;
+        }
+        .stage-info {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            margin-bottom: 15px;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            border: 2px solid #444;
+            width: 100%;
+            height: auto;
+            margin-bottom: 15px;
+            border-radius: 3px;
+        }
+        .fast-info {
+            background: #0a1a0a;
+            padding: 12px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .fast-info.success {
+            border-left: 4px solid #00ff00;
+            color: #00ff00;
+        }
+        .fast-info.failed {
+            border-left: 4px solid #ff6644;
+            color: #ff6644;
+        }
+        .stats {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+        .stats p {
+            margin: 5px 0;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #ffff00;
+        }
+        .explanation {
+            background: #2a3a2a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 30px;
+            border-left: 4px solid #00ff00;
+        }
+        .explanation h3 {
+            color: #00ff00;
+            margin-bottom: 15px;
+        }
+        .explanation ul {
+            margin-left: 20px;
+            font-size: 0.95em;
+        }
+        .explanation li {
+            margin: 8px 0;
+        }
+        .conclusion {
+            background: #1a2a1a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 30px;
+            border: 2px solid #00ff00;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        .conclusion strong {
+            color: #ffff00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 FAST Detektor: Warum die Bildpyramide notwendig ist</h1>
+
+        <div class="intro">
+            <h2>Die gleiche Position auf verschiedenen Skalen</h2>
+            <p>
+                Gleiche Feature, aber unterschiedliche Erkennung!<br>
+                <strong>Stufe 7:</strong> Feature erkannt ✅ | <strong>Stufe 1:</strong> Feature NICHT erkannt ❌
+            </p>
+        </div>
+
+        <div class="comparison-grid">
+            <!-- STUFE 7 - ERFOLG -->
+            <div class="stage-section">
+                <div class="stage-header">
+                    <h2 style="color: #00ff00;">Stufe 7 (k=7) ✅</h2>
+                    <p style="color: #aaa;">Kleine Version (3.58× verkleinert)</p>
+                </div>
+                <div class="stage-info">
+                    <p><strong>Größe:</strong> 223×111 Pixel</p>
+                    <p><strong>Position:</strong> (174, 62)</p>
+                    <p><strong>FAST Radius:</strong> 3 Pixel</p>
+                </div>
+                <canvas id="stage7Canvas" width="400" height="200"></canvas>
+                <div class="fast-info success">
+                    <p><strong>FAST Ergebnis: FEATURE ERKANNT! ✅</strong></p>
+                    <p id="stage7Result">Warte auf Berechnung...</p>
+                </div>
+                <div class="stats">
+                    <p>Heller (Blau): <span id="s7Lighter">?</span>/16</p>
+                    <p>Dunkler (Rot): <span id="s7Darker">?</span>/16</p>
+                    <p style="color: #00ff00; font-weight: bold;">→ <span id="s7Detection">?</span></p>
+                </div>
+            </div>
+
+            <!-- STUFE 1 - FEHLER -->
+            <div class="stage-section failed">
+                <div class="stage-header">
+                    <h2 style="color: #ff6644;">Stufe 1 (k=1) ❌</h2>
+                    <p style="color: #aaa;">Größere Version (1.2× verkleinert)</p>
+                </div>
+                <div class="stage-info">
+                    <p><strong>Größe:</strong> 666×333 Pixel</p>
+                    <p><strong>Position:</strong> (589, 210) *hochgerechnet</p>
+                    <p><strong>FAST Radius:</strong> 3 Pixel (gleich!)</p>
+                </div>
+                <canvas id="stage1Canvas" width="400" height="200"></canvas>
+                <div class="fast-info failed">
+                    <p><strong>FAST Ergebnis: KEINE FEATURE ERKANNT! ❌</strong></p>
+                    <p id="stage1Result">Warte auf Berechnung...</p>
+                </div>
+                <div class="stats">
+                    <p>Heller (Blau): <span id="s1Lighter">?</span>/16</p>
+                    <p>Dunkler (Rot): <span id="s1Darker">?</span>/16</p>
+                    <p style="color: #ff6644; font-weight: bold;">→ <span id="s1Detection">?</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Erklärung -->
+        <div class="explanation">
+            <h3>💡 Warum unterschiedliche Ergebnisse?</h3>
+            <ul>
+                <li>
+                    <strong>Stufe 7 (klein):</strong> Die Features sind relativ nah beieinander.
+                    Die 16 FAST-Nachbarn (3px Radius) sehen <strong>starke Kontrast-Unterschiede</strong>.
+                    → FAST erkennt die Feature! ✅
+                </li>
+                <li>
+                    <strong>Stufe 1 (groß):</strong> Die gleiche Position im größeren Bild.
+                    Die 16 FAST-Nachbarn (3px Radius) sind jetzt <strong>zu dicht beieinander</strong>
+                    (relativ zu den Features). Sie sehen <strong>gemischte Pixel</strong> (Hell, Dunkel, Ähnlich).
+                    → FAST findet nicht 9+ konsistent! ❌
+                </li>
+                <li>
+                    <strong>Der FAST-Radius ist immer 3 Pixel!</strong> Aber bei unterschiedlichen Skalierungen
+                    erfasst er relative unterschiedliche "Nachbarschafts-Muster".
+                </li>
+            </ul>
+        </div>
+
+        <div class="conclusion">
+            <p>
+                <strong style="color: #ffff00;">Das ist genau warum die Bildpyramide so wichtig ist!</strong><br><br>
+                Dieselbe Feature kann auf verschiedenen Skalen unterschiedlich erkannt werden.<br>
+                ORB-SLAM3 sucht daher auf <strong>ALLEN 8 Skalen</strong>, um sicherzustellen, dass keine Feature übersehen wird! 🚀
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const FAST_CIRCLE = [
+            {x: 0, y: -3},   {x: 1, y: -3},   {x: 2, y: -2},   {x: 3, y: -1},
+            {x: 3, y: 0},    {x: 3, y: 1},    {x: 2, y: 2},    {x: 1, y: 3},
+            {x: 0, y: 3},    {x: -1, y: 3},   {x: -2, y: 2},   {x: -3, y: 1},
+            {x: -3, y: 0},   {x: -3, y: -1},  {x: -2, y: -2},  {x: -1, y: -3}
+        ];
+
+        const img = new Image();
+
+        img.onload = function() {
+            analyzeStages();
+        };
+
+        img.src = '../cam0/1614256757008110848.png';
+
+        function getPixelBrightness(imageData, x, y, width) {
+            const idx = (Math.round(y) * width + Math.round(x)) * 4;
+            const r = imageData.data[idx];
+            const g = imageData.data[idx + 1];
+            const b = imageData.data[idx + 2];
+            return (r + g + b) / 3;
+        }
+
+        function analyzeStages() {
+            const k7_scale = 3.583;
+            const k1_scale = 1.2;
+
+            const original_w = 800;
+            const original_h = 400;
+
+            const stage7_w = Math.round(original_w / k7_scale);
+            const stage7_h = Math.round(original_h / k7_scale);
+            const stage1_w = Math.round(original_w / k1_scale);
+            const stage1_h = Math.round(original_h / k1_scale);
+
+            const x_original = 622;
+            const y_original = 223;
+
+            const x7 = Math.round(x_original / k7_scale);
+            const y7 = Math.round(y_original / k7_scale);
+
+            const x1 = Math.round(x_original / k1_scale);
+            const y1 = Math.round(y_original / k1_scale);
+
+            // Stufe 7 Canvas
+            const s7Canvas = document.getElementById('stage7Canvas');
+            const ctx7 = s7Canvas.getContext('2d');
+            ctx7.drawImage(img, 0, 0, stage7_w, stage7_h);
+
+            // Stufe 1 Canvas
+            const s1Canvas = document.getElementById('stage1Canvas');
+            const ctx1 = s1Canvas.getContext('2d');
+            ctx1.drawImage(img, 0, 0, stage1_w, stage1_h);
+
+            // Analysiere Stufe 7
+            const imageData7 = ctx7.getImageData(0, 0, s7Canvas.width, s7Canvas.height);
+            const center7 = getPixelBrightness(imageData7, x7, y7, stage7_w);
+            const {lighter: lighter7, darker: darker7} = countFastNeighbors(imageData7, x7, y7, stage7_w, center7);
+
+            // Analysiere Stufe 1
+            const imageData1 = ctx1.getImageData(0, 0, s1Canvas.width, s1Canvas.height);
+            const center1 = getPixelBrightness(imageData1, x1, y1, stage1_w);
+            const {lighter: lighter1, darker: darker1} = countFastNeighbors(imageData1, x1, y1, stage1_w, center1);
+
+            // Zeichne FAST-Nachbarn
+            drawFastNeighbors(ctx7, s7Canvas, stage7_w, stage7_h, x7, y7, lighter7, darker7);
+            drawFastNeighbors(ctx1, s1Canvas, stage1_w, stage1_h, x1, y1, lighter1, darker1);
+
+            // Update Text
+            const detected7 = lighter7 >= 9 || darker7 >= 9;
+            const detected1 = lighter1 >= 9 || darker1 >= 9;
+
+            document.getElementById('s7Lighter').textContent = lighter7;
+            document.getElementById('s7Darker').textContent = darker7;
+            document.getElementById('s7Detection').textContent = detected7 ?
+                'ERKANNT (' + Math.max(lighter7, darker7) + '/16)' :
+                'Nicht erkannt (' + Math.max(lighter7, darker7) + '/16)';
+
+            document.getElementById('s1Lighter').textContent = lighter1;
+            document.getElementById('s1Darker').textContent = darker1;
+            document.getElementById('s1Detection').textContent = detected1 ?
+                'ERKANNT (' + Math.max(lighter1, darker1) + '/16)' :
+                'Nicht erkannt (' + Math.max(lighter1, darker1) + '/16)';
+
+            document.getElementById('stage7Result').textContent =
+                `${lighter7} heller + ${darker7} dunkler = ${Math.max(lighter7, darker7)} konsistent`;
+
+            document.getElementById('stage1Result').textContent =
+                `${lighter1} heller + ${darker1} dunkler = ${Math.max(lighter1, darker1)} konsistent (Zu gemischt!)`;
+        }
+
+        function countFastNeighbors(imageData, cx, cy, width, centerVal) {
+            const threshold = 50;
+            let lighter = 0, darker = 0;
+
+            FAST_CIRCLE.forEach(neighbor => {
+                const nx = Math.round(cx + neighbor.x);
+                const ny = Math.round(cy + neighbor.y);
+
+                if (nx >= 0 && nx < width && ny >= 0) {
+                    const nVal = getPixelBrightness(imageData, nx, ny, width);
+
+                    if (nVal > centerVal + threshold) lighter++;
+                    else if (nVal < centerVal - threshold) darker++;
+                }
+            });
+
+            return {lighter, darker};
+        }
+
+        function drawFastNeighbors(ctx, canvas, imgWidth, imgHeight, cx, cy, lighter, darker) {
+            const scaleX = canvas.width / imgWidth;
+            const scaleY = canvas.height / imgHeight;
+
+            // Zeichne FAST-Nachbarn
+            FAST_CIRCLE.forEach(neighbor => {
+                const nx = cx + neighbor.x;
+                const ny = cy + neighbor.y;
+
+                if (nx >= 0 && nx < imgWidth && ny >= 0 && ny < imgHeight) {
+                    const px = nx * scaleX;
+                    const py = ny * scaleY;
+
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(px, py, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // Zeichne Center
+            const centerX = cx * scaleX;
+            const centerY = cy * scaleY;
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Zeichne FAST-Radius Kreis
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 3 * scaleX, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>
