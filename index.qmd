@@ -315,12 +315,89 @@ Eigenwerte von $M$ groß sind – also in beide Richtungen Intensitätsänderung
 *TBD: ORB / SIFT als modernere Alternativen ergänzen.*
 :::
 
+::: {.vslam-slide}
+#### Schritt 1: Graustufen-Konvertierung
+Das erste Schritt konvertiert das RGB-Eingabebild zu Graustufen. Dies reduziert die Dimensionality und verbessert die Verarbeitungsgeschwindigkeit.
+
+**Warum?**
+- Farbinformation ist oft redundant für Feature-Erkennung
+- Graustufen-Features sind computationally cheaper
+- Robustheit gegen Beleuchtungsänderungen
+:::
+
+::: {.vslam-slide}
+#### Schritt 2: Gauss-Filter (Rausch-Unterdrückung)
+Der Gauss-Filter glättet das Bild, um hochfrequentes Rauschen zu reduzieren, während Kanten erhalten bleiben.
+
+**Parameter:**
+- Kernelgröße: typischerweise 3×3 oder 5×5
+- Standardabweichung σ: bestimmt die Glätte
+- Effekt: lokale Mittelung mit Gewichten
+:::
+
+::: {.vslam-slide}
+#### Schritt 3: Bildpyramide (Multi-Skalenerkennung)
+Eine Bildpyramide ist eine Sequenz von Bildern, die progressiv verkleinert werden (üblicherweise um Faktor 1.2).
+
+**Ziel:** Features auf verschiedenen Skalierungsstufen erkennen
+- Große Features auf höheren Ebenen
+- Kleine Features auf unteren Ebenen
+- ORB-SLAM: 8 Pyramidenlevel, Skalierungsfaktor 1.2
+:::
+
+::: {.vslam-slide}
+#### Schritt 4: FAST Detektor
+Der FAST (Features from Accelerated Segment Test) Detektor identifiziert Ecken durch schnelle Pixelvergleiche im 16er-Kreis um jeden Kandidaten.
+
+**Regel:** Eine Ecke liegt vor, wenn mindestens 9 der 16 Nachbar-Pixel konsistent heller oder dunkler als der Center-Pixel sind (mit Threshold).
+
+**Vorteil:** Sehr schnell, daher ideal für Echtzeit-SLAM.
+:::
+
+::: {.vslam-slide}
+#### Schritt 5: Non-Maximum Suppression (NMS)
+Nach der FAST-Erkennung liefert jeder Detektor einen Response-Wert. NMS wählt nur die besten lokalen Maxima aus — das heißt, überlappende schwache Features werden entfernt.
+
+**Resultat:** Verteilte, hochwertige Features statt Haufen ähnlicher Features in demselben Bereich.
+:::
+
+::: {.vslam-slide}
+#### Schritt 6: Quadtree-Verteilung
+Features aus NMS können ungleichmäßig verteilt sein (z.B. gehäuft an Kanten).
+Der Quadtree-Algorithmus teilt das Bild in 4 Quadranten, limitiert die Features pro Quadrant und achtet auf Gleichverteilung.
+
+**Ergebnis:** ~500 Features gleichmäßig über das gesamte Sichtfeld verteilt.
+:::
+
+::: {.vslam-slide}
+#### Schritt 7: Harris Corner Scoring
+Der Harris Corner Detector bewertet Corners robuster als reiner FAST durch eine mathematische Analyse der lokalen Gradienten.
+
+**Formel:** $R = \det(M) - k \cdot \text{tr}(M)^2$ mit M = Gradient-Strukturmatrix
+
+**Vorteil:** Robuster gegen Rotation und Skalierung als FAST allein.
+:::
+
+::: {.vslam-slide}
+#### Die vollständige Feature-Extraction Pipeline
+Zusammenfassung aller Schritte von Rohbild zu finalen Features:
+
+1. **Schritt 1-2:** Graustufen + Rausch-Filterung
+2. **Schritt 3:** Multi-Skalierungen via Bildpyramide
+3. **Schritt 4:** FAST-Feature auf allen Stufen
+4. **Schritt 5:** Non-Maximum Suppression (beste Features)
+5. **Schritt 6:** Quadtree-Gleichverteilung
+6. **Schritt 7:** Harris-Scoring für Robustheit
+
+**Output:** ~500 hochwertige, gleichverteilte, rotations-robuste Features pro Bild — die Grundlage für VO und Mapping!
+:::
+
 :::
 
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 3</span>
+<span class="vslam-counter">Slide 1 / 11</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
