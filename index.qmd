@@ -514,7 +514,7 @@ Mehrere Keyframes (z.B. 3)
 
 ```{=html}
 <div style="text-align: center;">
-  <img src="images/lokales_mapping/tracks_konzept.png" width="85%">
+  <img src="images/lokales_mapping/landmarks.png" width="85%">
   <figcaption>Tracks: dasselbe Feature in mehreren Keyframes wiedergefunden (gleiche Farbe = derselbe Landmark)</figcaption>
 </div>
 ```
