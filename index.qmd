@@ -624,7 +624,7 @@ In der Praxis bleibt immer ein Restfehler – dieser wird durch Bundle Adjustmen
 ```{=html}
 <div style="text-align: center;">
   <img src="images/lokales_mapping/post_local_opt.png" width="75%">
-  <figcaption>Reprojektionsfehler der Landmarks vor (rot) und nach lokaler Optimierung (grün)</figcaption>
+  <figcaption>Erwünschtes Resultat: Reprojektionsfehler der Landmarks vor (rot) und nach lokaler Optimierung (grün)</figcaption>
 </div>
 ```
 :::
@@ -1216,11 +1216,17 @@ nur nach erfolgreichem Loop Closure ausgeführt.
 :::
 
 
-## 3.3 Code: Implementierungen
+# Code: Implementierungen
+
+### Lokales Mapping und Lokale Optimierung
+<details markdown="1">
+<summary><b>Vollständige Implementierung anzeigen</b></summary>
+```python
+
+```
 
 
 ### Loop-Closure-Detektion
-
 <details markdown="1">
 <summary><b>Vollständige Implementierung anzeigen (13_loop_closure.qmd)</b></summary>
 
@@ -1812,19 +1818,5 @@ print(f"\nGesamtverbesserung durch PGO: {improvement:.1f}% Drift-Reduktion")
 ```
 
 </details>
-
-
-## Visualisierung der vSLAM Pipeline
-
-TBD: Veranschaulichung der oben erklärten Theorie: etwa Visualisierung durch Slideshow in der jeder Slide
-einem Step des Workflows entspricht. Ideen:
-
-- Entstehung der Punktewolke interaktiv einbetten
-
-- Mapping und Optimierungsschritte bildlich darstellen
-
-- Mappen deines Gebäudes mittels OS vSLAM Anwendungen
-
-- Vergleich von günstigen/ ungünstigen Umgebungen für die vSLAM Technologie bezogen auf Texturen, Objekte, Gradienten im Bild
 
 
