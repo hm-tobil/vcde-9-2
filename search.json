@@ -1,5 +1,12 @@
 [
   {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "vSLAM – Virtual Simultaneous Localization and Mapping",
+    "section": "",
+    "text": "vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie Indoor-Navigation (z.B. Saugroboter).\nAnwendungsbereiche im Detail:\n\nRobotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und Erstellung von Karten unbekannter Umgebungen/ Räume.\nAugmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen und virtuelle Objekte exakt in die reale Welt einzubetten.\nAutonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung (Spurhalteassistent etc.).\nIndoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in Logistikzentren oder für Roboter in Lagerhallen."
+  },
+  {
     "objectID": "index.html#feature-extraction",
     "href": "index.html#feature-extraction",
     "title": "vSLAM – Virtual Simultaneous Localization and Mapping",
