@@ -101,15 +101,35 @@ bibliography: references.bib
 </script>
 ```
 
-### vSLAM Workflow (TUM Dataset)
-### Source
+# vSLAM – Use Cases und grundlegende Funktionsweise
+vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
+kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie
+Indoor-Navigation (z.B. Saugroboter).
 
+Anwendungsbereiche im Detail:
+
+- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und
+  Erstellung von Karten unbekannter Umgebungen/ Räume.
+
+- Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
+  und virtuelle Objekte exakt in die reale Welt einzubetten.
+
+- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung
+  (Spurhalteassistent etc.).
+
+- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in
+  Logistikzentren oder für Roboter in Lagerhallen.
+
+
+
+# Der vSLAM Workflow anhand eines Beispieldatensatzes
+### Eine uns nbekannte Umgebung...
 <video width="100%" controls>
   <source src="images/recording_2020-12-22_12-04-35_5x.mp4" type="video/mp4">
   Dein Browser unterstützt keine Videos.
 </video>
 
-### Karte nach Abschluss des Mappings
+### ... wollen wir mit Hilfe von vSLAM kartieren:
 
 ```{python}
 #| echo: false
@@ -238,26 +258,6 @@ if all_points:
 else:
     print("Keine Daten gefunden.")
 ```
-
-# vSLAM – Use Cases und grundlegende Funktionsweise
-vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
-kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie
-Indoor-Navigation (z.B. Saugroboter).
-
-Anwendungsbereiche im Detail:
-
-- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und
-  Erstellung von Karten unbekannter Umgebungen/ Räume.
-
-- Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
-  und virtuelle Objekte exakt in die reale Welt einzubetten.
-
-- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung
-  (Spurhalteassistent etc.).
-
-- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in
-  Logistikzentren oder für Roboter in Lagerhallen.
-
 
 # Zentrale Komponenten des VSLAM Algorithmus
 
