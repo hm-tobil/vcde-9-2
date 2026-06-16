@@ -14,51 +14,140 @@ bibliography: references.bib
      <div class="vslam-slider"> ... </div> weiter unten im Dokument.
      ===================================================================== -->
 <style>
+  /* ═══════════════════════════════════════════════════════
+     PAGE BACKGROUND & LAYOUT
+     ═══════════════════════════════════════════════════════ */
+  body {
+    background: #eef2f8 !important;
+  }
+
+  /* ── Section headings ────────────────────────────────── */
+  h1 {
+    color: #1a2e45;
+    font-weight: 700;
+    padding-bottom: .5rem;
+    border-bottom: 3px solid #2980b9;
+    margin-top: 2.5rem;
+  }
+  /* Workflow step headings */
+  main h2 {
+    color: #1a2e45;
+    font-size: 1.08rem;
+    font-weight: 700;
+    padding: .5rem 1rem;
+    border-left: 4px solid #2980b9;
+    background: linear-gradient(90deg, #deeaf7 0%, transparent 100%);
+    border-radius: 0 8px 8px 0;
+    margin: 2.2rem 0 .8rem 0;
+  }
+  /* Anchor link colour inside h2 */
+  main h2 a.anchorjs-link { color: #2980b9 !important; }
+
+  /* ── HR separator ────────────────────────────────────── */
+  hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #2980b9, transparent);
+    margin: 2.5rem 0;
+    opacity: .35;
+  }
+
+  /* ── Code / details blocks ───────────────────────────── */
+  details {
+    background: #f4f8fd;
+    border: 1px solid #c8ddf0;
+    border-radius: 8px;
+    padding: .4rem 1rem .6rem 1rem;
+    margin: .75rem 0;
+  }
+  details summary {
+    cursor: pointer;
+    padding: .45rem 0;
+    color: #1a2e45;
+    font-size: .95rem;
+    user-select: none;
+  }
+  details summary:hover { color: #2980b9; }
+
+  /* ═══════════════════════════════════════════════════════
+     SLIDER BOX
+     ═══════════════════════════════════════════════════════ */
   .vslam-slider {
-    border: 1px solid #e3e3e3;
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem 1rem 1.5rem;
+    border: 1px solid #c8ddf0;
+    border-top: 4px solid #2980b9;
+    border-radius: 0 0 14px 14px;
+    padding: 1.4rem 1.6rem 1rem 1.6rem;
     margin: 1.5rem 0 2rem 0;
-    background: #fafafa;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    background: #ffffff;
+    box-shadow: 0 6px 28px rgba(41, 128, 185, .10),
+                0 1px 4px rgba(0, 0, 0, .05);
     display: flex;
     flex-direction: column;
   }
   .vslam-slider .vslam-slides { position: relative; min-height: 340px; }
-  .vslam-slider .vslam-slide { display: none; animation: vslamFade .35s ease; }
+  .vslam-slider .vslam-slide  { display: none; animation: vslamFade .35s ease; }
   .vslam-slider .vslam-slide.active { display: block; }
+
   @keyframes vslamFade {
-    from { opacity: 0; transform: translateX(8px); }
+    from { opacity: 0; transform: translateX(10px); }
     to   { opacity: 1; transform: translateX(0); }
   }
+
+  /* Slide content h4 */
   .vslam-slider .vslam-slide h4 {
     margin-top: 0;
-    color: #2c3e50;
-    border-bottom: 2px solid #3498db;
+    color: #1a2e45;
+    border-bottom: 2px solid #2980b9;
     padding-bottom: .35rem;
+    font-size: 1rem;
   }
   .vslam-slider .vslam-slide figure { margin: 0.5rem 0; }
   .vslam-slider .vslam-slide img { max-width: 100%; height: auto; }
+
+  /* Controls bar */
   .vslam-slider .vslam-controls {
     display: flex; align-items: center; justify-content: space-between;
     gap: 1rem;
     margin-top: 1rem;
-    padding-top: .6rem;
-    border-top: 1px solid #e8ecef;
+    padding-top: .65rem;
+    border-top: 1px solid #deeaf7;
   }
+
+  /* Navigation buttons */
   .vslam-slider .vslam-btn {
-    background: #2c3e50; color: #fff; border: none;
-    border-radius: 6px; padding: .35rem .9rem;
-    cursor: pointer; font-size: .9rem;
+    background: linear-gradient(135deg, #1a2e45 0%, #2980b9 100%);
+    color: #fff; border: none;
+    border-radius: 7px; padding: .38rem 1.05rem;
+    cursor: pointer; font-size: .88rem; font-weight: 500;
+    letter-spacing: .02em;
+    transition: opacity .18s, transform .12s, box-shadow .18s;
+    box-shadow: 0 2px 6px rgba(41,128,185,.3);
   }
-  .vslam-slider .vslam-btn:disabled { background: #b0b8c1; cursor: not-allowed; }
-  .vslam-slider .vslam-dots { display: flex; gap: .4rem; }
+  .vslam-slider .vslam-btn:not(:disabled):hover {
+    opacity: .88;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(41,128,185,.35);
+  }
+  .vslam-slider .vslam-btn:disabled {
+    background: #c8d6e5;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  /* Dots */
+  .vslam-slider .vslam-dots { display: flex; gap: .45rem; align-items: center; }
   .vslam-slider .vslam-dot {
     width: 9px; height: 9px; border-radius: 50%;
-    background: #cfd6dd; cursor: pointer; transition: background .2s;
+    background: #c0d4e8; cursor: pointer;
+    transition: background .2s, transform .2s;
   }
-  .vslam-slider .vslam-dot.active { background: #3498db; }
-  .vslam-slider .vslam-counter { font-size: .85rem; color: #6c757d; }
+  .vslam-slider .vslam-dot.active {
+    background: #2980b9;
+    transform: scale(1.3);
+  }
+  .vslam-slider .vslam-counter {
+    font-size: .82rem; color: #5a7ea0; font-weight: 500;
+  }
 </style>
 
 <script>
