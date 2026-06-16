@@ -283,12 +283,18 @@ Details navigieren.
 
 ::: {.vslam-slide}
 #### Schritt 1: Graustufen-Konvertierung
-Das erste Schritt konvertiert das RGB-Eingabebild zu Graustufen. Dies reduziert die Dimensionality und verbessert die Verarbeitungsgeschwindigkeit.
 
-**Warum?**
-- Farbinformation ist oft redundant für Feature-Erkennung
-- Graustufen-Features sind computationally cheaper
-- Robustheit gegen Beleuchtungsänderungen
+Das RGB-Farbbild wird in Graustufen umgewandelt. Die Formel gewichtet die Kanäle nach menschlicher Wahrnehmung:
+
+$$I_{\text{grau}} = 0{,}299 \cdot R + 0{,}587 \cdot G + 0{,}114 \cdot B$$
+
+Das Auge ist am empfindlichsten für Grün (58,7%), deshalb hat es das höchste Gewicht.
+
+**Warum nur Helligkeit, nicht Farbe?**
+- Farbe ändert sich mit Beleuchtung, Kanten aber nicht
+- Kanten sind Helligkeitsunterschiede — egal welche Farben
+- Computer Vision braucht Struktur (Gradienten), nicht Farbe
+- **3 Kanäle → 1 Kanal = 3× schneller** zum Verarbeiten
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -299,12 +305,25 @@ Das erste Schritt konvertiert das RGB-Eingabebild zu Graustufen. Dies reduziert 
 
 ::: {.vslam-slide}
 #### Schritt 2: Gauss-Filter (Rausch-Unterdrückung)
-Der Gauss-Filter glättet das Bild, um hochfrequentes Rauschen zu reduzieren, während Kanten erhalten bleiben.
 
-**Parameter:**
-- Kernelgröße: typischerweise 3×3 oder 5×5
-- Standardabweichung σ: bestimmt die Glätte
-- Effekt: lokale Mittelung mit Gewichten
+**Problem:** Kamerasensoren erzeugen zufälliges Rauschen — FAST würde falsche Ecken erkennen.
+
+**Lösung:** Der Gauss-Filter ersetzt jeden Pixel mit einem **gewichteten Durchschnitt** seiner Nachbarn:
+
+$$G(x,y) = \frac{1}{2\pi\sigma^2} e^{-\frac{x^2+y^2}{2\sigma^2}}$$
+
+Nahegelegene Pixel zählen mehr, weiter entfernte weniger. Das glättet Rauschen, erhält aber echte Kanten.
+
+**Gewichte im 5×5-Kernel:**
+
+| Position | Gewicht | % |
+|----------|---------|-----|
+| Mitte (0,0) | 0.195 | **19,5%** |
+| Rechts/Unten (1,0) oder (0,1) | 0.071 | 7,1% |
+| Diagonal (1,1) | 0.025 | 2,5% |
+| Ecke (2,2) | 0.004 | **0,4%** |
+
+Die Gewichte addieren sich zu **1,0**. Konkretbeispiel: Ein heller Ausreißer (Pixel = 250) wird durch seine Nachbarn (~20) auf etwa 35 abgeschwächt.
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -315,35 +334,59 @@ Der Gauss-Filter glättet das Bild, um hochfrequentes Rauschen zu reduzieren, w�
 
 ::: {.vslam-slide}
 #### Schritt 3: Bildpyramide (Multi-Skalenerkennung)
-Eine Bildpyramide ist eine Sequenz von Bildern, die progressiv verkleinert werden (üblicherweise um Faktor 1.2).
-Dies ermöglicht die Erkennung von Features über verschiedene Skalierungen — große Objekte auf groben Stufen, kleine Details auf feinen Stufen.
 
-**8 Pyramidenstufen – ORB-SLAM (Skalierungsfaktor: 1.2):**
+**Problem:** Dieselbe Ecke sieht je nach Entfernung anders aus — ist ein Objekt zu groß, wirkt die Ecke verschmiert und wird nicht erkannt.
 
-- Stufe 0: 640 × 480 (Original)
-- Stufe 1: 533 × 400 (1.2× verkleinert)
-- Stufe 3: 370 × 277 (1.73× verkleinert)
-- Stufe 7: 179 × 134 (3.58× verkleinert)
+**Lösung:** Erstelle eine Pyramide — 8 Bilder, jedes 1,2× kleiner als das vorherige.
 
-**Rückprojektion zu echtem Bild:** $x_{original} = x_k \times 1.2^k$
+**Beispiel:** Eine Ecke auf Stufe 0 unsichtbar (Bogen nur 5 Pixel) → auf der kleineren Stufe 6 deutlich erkannt (Bogen 13 Pixel).
+
+**8 Pyramidenstufen – ORB-SLAM:**
+
+| Stufe | Faktor | Pixel | Größer |
+|:---:|:---:|:---:|:---:|
+| 0 | 1,0× | 800×400 | Original |
+| 1 | 0,83× | 667×333 | |
+| 3 | 0,58× | 463×231 | **1,73×** kleinere Objekte erkannt |
+| 7 | 0,28× | 223×111 | **3,58×** viel kleinere Details |
+
+**Rückrechnung zu Original-Bild:**
+
+$$\text{Position}_{\text{original}} = \text{Position}_{\text{Stufe k}} \times 1{,}2^k$$
+
+Beispiel: Feature auf Stufe 6 bei (120, 80) → $1{,}2^6 = 2{,}99$ → Original: $(358, 239)$
+
+**Sub-Pixel Genauigkeit:** Tiefere Stufen liefern feinere Positionen:
+
+| Stufe | Skalierung | Genauigkeit |
+|:---:|:---:|:---:|
+| 0 | 1,0× | ±1,0 px |
+| 3 | 1,73× | **±0,58 px** |
+| 7 | 3,58× | **±0,28 px** |
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
   <img src="images/feature_extraction/bildpyramide.png" style="width: 100%; max-height: 500px; object-fit: contain;">
 </div>
 ```
-
-**Features erkennen auf allen Stufen:**
-- Große Features auf höheren Ebenen (gröber)
-- Kleine Features auf unteren Ebenen (feiner)
-- Quadtree-Verteilung sorgt für gleichmäßige Verteilung pro Stufe
 :::
 
 ::: {.vslam-slide}
-#### Schritt 4: FAST Detektor
-Der FAST (Features from Accelerated Segment Test) Detektor identifiziert Ecken durch schnelle Pixelvergleiche im 16er-Kreis um jeden Kandidaten.
+#### Schritt 4: FAST Detektor (Features from Accelerated Segment Test)
 
-**Regel:** Eine Ecke liegt vor, wenn mindestens 9 der 16 Nachbar-Pixel konsistent heller oder dunkler als der Center-Pixel sind (mit Threshold).
+**Regel:** Zeichne einen Kreis mit 16 Nachbarn (Radius 3) um jeden Pixel p. Ein Pixel ist eine Ecke, wenn **mindestens 9 zusammenhängende** Nachbarn entweder:
+- **Heller** sind: $I_x > I_p + t$ (Schwellenwert t ≈ 5 bis 20)
+- **Dunkler** sind: $I_x < I_p - t$
+
+Dazwischenliegende Werte sind „ähnlich" und zählen nicht.
+
+**Warum der Threshold t wichtig?** Ohne t würde bereits Rauschen als Unterschied zählen → viele falsche Ecken.
+
+**Warum 9?** Mindestens die Hälfte+1 des Kreises (16÷2 + 1 = 9) muss konsistent sein — einzelne unterschiedliche Pixel sind kein Zufall.
+
+**Konkrete Beispiele:**
+- **Links:** 10 zusammenhängende hellere Pixel → **Ecke erkannt** ✓
+- **Rechts:** Hellere Pixel verstreut, längster zusammenhängender Bogen nur 5 → **keine Ecke** ✗
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -351,16 +394,54 @@ Der FAST (Features from Accelerated Segment Test) Detektor identifiziert Ecken d
 </div>
 ```
 
-**Vorteil:** Sehr schnell, daher ideal für Echtzeit-SLAM.
+**Vorteil:** FAST ist extrem schnell — ideal für Echtzeit-SLAM-Systeme.
 :::
 
 
 ::: {.vslam-slide}
-#### Schritt 6: Quadtree-Verteilung
-Features können ungleichmäßig verteilt sein (z.B. gehäuft an Kanten).
-Der Quadtree-Algorithmus teilt das Bild in 4 Quadranten, limitiert die Features pro Quadrant und achtet auf Gleichverteilung.
+#### Schritt 5: Harris Corner Scoring
 
-**Ergebnis:** ~500 Features gleichmäßig über das gesamte Sichtfeld verteilt.
+FAST liefert **Kandidaten**, aber nicht alle sind gleich hochwertig. Der Harris-Detektor bewertet die Qualität über Gradienten:
+
+$$I_x = \frac{\partial I}{\partial x}, \quad I_y = \frac{\partial I}{\partial y}$$
+
+Beispiel einer Kante (200→50): $I_x = -75$
+
+Aus diesen Gradienten berechnen wir drei Summen über ein 5×5-Fenster (die Strukturmatrix M):
+
+$$S_{xx} = \sum I_x^2, \quad S_{yy} = \sum I_y^2, \quad S_{xy} = \sum I_x \cdot I_y$$
+
+Diese bilden die Struktur-Matrix M. Die **Harris-Response** ist:
+
+$$R = \det(M) - k \cdot \text{tr}(M)^2 \quad (k \approx 0{,}04)$$
+
+**Interpretation von R:**
+- **R ≫ 0:** Helligkeitsänderung in **beiden** Richtungen (x und y) → **starke Ecke** ✓
+- **R ≪ 0:** Starke Änderung in nur einer Richtung → nur eine **Kante** (Edge)
+- **R ≈ 0:** Keine nennenswerte Änderung → **flache Region**
+
+Je höher R, desto robuster und zuverlässiger die Ecke.
+
+```{=html}
+<div style="text-align: center; margin: 20px 0;">
+  <img src="images/feature_extraction/harris.png" style="width: 100%; max-height: 500px; object-fit: contain;">
+</div>
+```
+:::
+
+::: {.vslam-slide}
+#### Schritt 6: Quadtree-Verteilung
+
+**Problem:** FAST findet oft zu viele Ecken, die an Kanten clustern — z.B. ~275 auf einem Bild. Sie sind ungleichmäßig verteilt und viele sind redundant.
+
+**Lösung — Quadtree:** Lege ein Gitter über das Bild, teile es in rechteckige Zellen. In jeder Zelle: **behalte nur die eine stärkste Ecke** (nach Harris-Score R).
+
+**Pipeline-Reihenfolge klar machen:**
+1. **FAST:** Findet Kandidaten (→ ~275)
+2. **Harris:** Bewertet Qualität (Response R)
+3. **Quadtree:** Wählt verteilt aus (→ pro Zelle max. 1)
+
+**Ergebnis:** Features sind gleichmäßig über das ganze Bild verteilt, jede bleibt hochwertig.
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -369,33 +450,28 @@ Der Quadtree-Algorithmus teilt das Bild in 4 Quadranten, limitiert die Features 
 ```
 :::
 
-::: {.vslam-slide}
-#### Schritt 7: Harris Corner Scoring
-Der Harris Corner Detector bewertet Corners robuster als reiner FAST durch eine mathematische Analyse der lokalen Gradienten.
-
-**Formel:** $R = \det(M) - k \cdot \text{tr}(M)^2$ mit M = Gradient-Strukturmatrix
-
-```{=html}
-<div style="text-align: center; margin: 20px 0;">
-  <img src="images/feature_extraction/harris.png" style="width: 100%; max-height: 500px; object-fit: contain;">
-</div>
-```
-
-**Vorteil:** Robuster gegen Rotation und Skalierung als FAST allein.
-:::
-
 
 ::: {.vslam-slide}
 #### Die vollständige Feature-Extraction Pipeline
-Zusammenfassung aller Schritte von Rohbild zu finalen Features:
 
-1. **Schritt 1-2:** Graustufen + Rausch-Filterung
-2. **Schritt 3:** Multi-Skalierungen via Bildpyramide
-3. **Schritt 4:** FAST-Feature auf allen Stufen
-4. **Schritt 6:** Quadtree-Gleichverteilung
-5. **Schritt 7:** Harris-Scoring für Robustheit
+Die Pipeline ist ein **Trichter** — Menge sinkt, Qualität steigt:
 
-**Output:** ~500 hochwertige, gleichverteilte, rotations-robuste Features pro Bild — die Grundlage für VO und Mapping!
+$$\approx 787 \text{ FAST-Ecken} \xrightarrow{\text{Quadtree}} 73 \xrightarrow{\text{Top Harris}} 40$$
+
+**Alle Schritte zusammengefasst:**
+
+1. **Graustufen + Gauss:** RGB-Bild → entrauschte Graustufen
+2. **Bildpyramide:** 8 Größenstufen (Faktor 1,2)
+3. **FAST auf allen Stufen:** Schnelle Ecken-Erkennung
+4. **Harris-Bewertung:** Robuste Qualitätsmetrik
+5. **Quadtree-Selektion:** Gleichmäßige Verteilung pro Stufe
+
+**Output:** ~40–500 hochwertige, gleichmäßig verteilte, rotationsrobuste **Keypoints** pro Bild.
+
+Diese sind die **Grundlage für alles Weitere:**
+- Tracking über Frames → Visuelle Odometrie (1.2)
+- Triangulation → 3D-Punkte → lokale Karte (2.1)
+- Loop Closure Detection → Drift-Korrektur (3.1/3.2)
 :::
 
 :::
