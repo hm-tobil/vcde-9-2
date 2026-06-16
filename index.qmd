@@ -372,32 +372,13 @@ Details navigieren.
 
 
 ::: {.vslam-slide}
-#### Einleitung: Warum Feature Extraction?
+#### Schritt 1: Graustufen-Konvertierung
+Das erste Schritt konvertiert das RGB-Eingabebild zu Graustufen. Dies reduziert die Dimensionality und verbessert die Verarbeitungsgeschwindigkeit.
 
-Ein Roboter sieht nur Pixel — milionen davon. Aber:
-- Ein Pixel allein ist bedeutungslos
-- Pixel können sich durch Beleuchtung, Bewegung, Rauschen ändern
-- **Wir brauchen markante Punkte**, die zuverlässig wiedererkannt werden
-
-Diese markanten Punkte sind **Features** oder **Keypoints**:
-- Hauptsächlich **Ecken** — wo sich Helligkeit in mehrere Richtungen stark ändert
-- Stabil über Zeit und Perspektive
-- Können zwischen Bildern verfolgt werden
-
-**Feature Extraction pipeline** extrahiert diese 40–500 besten Punkte aus jedem Bild — robust, schnell, verteilt.
-:::
-
-::: {.vslam-slide}
-#### Schritt 1a: Graustufen — Das Problem
-
-Ein Farbfarbbild hat **3 Kanäle: R (Rot), G (Grün), B (Blau)**. Aber:
-
-- **Farbe ändert sich mit Beleuchtung:** Ein rotes Objekt kann dunkelrot, hellrot, orange wirken
-- **Ecken sind aber immer da:** Egal welche Farben, wo Helligkeit abrupt wechselt, ist eine Ecke
-- **Wir brauchen nur Struktur:** Helligkeitsgradienten, nicht Farbinformation
-- **3 Kanäle = 3× Rechenzeit:** RGB verarbeiten braucht 3 Operationen pro Pixel; Graustuen nur 1
-
-→ Konvertiere zu **1 Kanal (Graustufen)** — schneller, simpler, robuster
+**Warum?**
+- Farbinformation ist oft redundant für Feature-Erkennung
+- Graustufen-Features sind computationally cheaper
+- Robustheit gegen Beleuchtungsänderungen
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -407,36 +388,13 @@ Ein Farbfarbbild hat **3 Kanäle: R (Rot), G (Grün), B (Blau)**. Aber:
 :::
 
 ::: {.vslam-slide}
-#### Schritt 1b: Graustufen — Die Formel
+#### Schritt 2: Gauss-Filter (Rausch-Unterdrückung)
+Der Gauss-Filter glättet das Bild, um hochfrequentes Rauschen zu reduzieren, während Kanten erhalten bleiben.
 
-Die Konvertierung von RGB zu Graustuen verwendet eine **gewichtete Summe**, die das menschliche Auge berücksichtigt:
-
-$$I_{\text{grau}} = 0{,}299 \cdot R + 0{,}587 \cdot G + 0{,}114 \cdot B$$
-
-**Gewichte erklärt:**
-- **Grün (58,7%)** — unser Auge ist dafür am empfindlichsten
-- **Rot (29,9%)** — zweitempfindlich
-- **Blau (11,4%)** — am wenigsten empfindlich
-
-**Praktisches Beispiel:** Pixel (R=200, G=100, B=50)
-$$I = 0{,}299 \times 200 + 0{,}587 \times 100 + 0{,}114 \times 50 = 59{,}8 + 58{,}7 + 5{,}7 = 124 \text{ (Graustufen)}$$
-
-Alle RGB-Informationen sind in diesem einen Wert komprimiert.
-:::
-
-::: {.vslam-slide}
-#### Schritt 2a: Gauss-Filter — Das Problem
-
-**Kamerasensoren erzeugen Rauschen:**
-- Zufällige Helligkeits-Schwankungen (elektrisches Rauschen, Temperaturschwankungen)
-- Besonders schlecht bei schlechtem Licht oder ISO-Verstärkung
-
-**Was passiert ohne Filter?**
-- Pixel 100 im Original, aber Sensor liefert 105, 98, 102, 107...
-- FAST Detektor sieht „schnelle Helligkeitswechsel" überall → **falsche Ecken erkannt**
-- Detector wird laut und unzuverlässig
-
-**Lösung:** **Gauss-Filter** — glätte Rauschen, ohne echte Kanten zu zerstören
+**Parameter:**
+- Kernelgröße: typischerweise 3×3 oder 5×5
+- Standardabweichung σ: bestimmt die Glätte
+- Effekt: lokale Mittelung mit Gewichten
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -446,472 +404,88 @@ Alle RGB-Informationen sind in diesem einen Wert komprimiert.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2b: Gauss-Filter — Die Formel und Gewichte
+#### Schritt 3: Bildpyramide (Multi-Skalenerkennung)
+Eine Bildpyramide ist eine Sequenz von Bildern, die progressiv verkleinert werden (üblicherweise um Faktor 1.2).
+Dies ermöglicht die Erkennung von Features über verschiedene Skalierungen — große Objekte auf groben Stufen, kleine Details auf feinen Stufen.
 
-Der Gauss-Filter ersetzt jeden Pixel mit einem **gewichteten Durchschnitt** seiner Nachbarn. Die Gewichte folgen einer Gauss-Kurve:
+**8 Pyramidenstufen – ORB-SLAM (Skalierungsfaktor: 1.2):**
 
-$$G(x,y) = \frac{1}{2\pi\sigma^2} e^{-\frac{x^2+y^2}{2\sigma^2}}$$
+- Stufe 0: 640 × 480 (Original)
+- Stufe 1: 533 × 400 (1.2× verkleinert)
+- Stufe 3: 370 × 277 (1.73× verkleinert)
+- Stufe 7: 179 × 134 (3.58× verkleinert)
 
-Wo:
-- $(x,y)$ = Position relativ zur Mitte
-- $\sigma$ = Standardabweichung (bestimmt wie schnell Gewichte fallen)
-
-**Im 5×5-Kernel bedeutet das konkrete Gewichte:**
-
-| Position | Abstand | Gewicht | % |
-|:---:|:---:|:---:|:---:|
-| **Mitte (0,0)** | 0 | 0.195 | **19,5%** |
-| Rechts/Unten (±1,0) oder (0,±1) | 1 | 0.071 | 7,1% |
-| Diagonal (±1,±1) | √2 ≈ 1,4 | 0.025 | 2,5% |
-| Ecke (±2,±2) | √8 ≈ 2,8 | 0.004 | **0,4%** |
-
-**Die Gewichte addieren sich zu 1,0** — eine echte Wahrscheinlichkeitsverteilung.
-
-Der Sinn: **Nahegelegene Pixel zählen viel mehr als weit entfernte.**
-:::
-
-::: {.vslam-slide}
-#### Schritt 2c: Gauss-Filter — Konkretes Beispiel
-
-**Szenario:** Ein einzelner heller Ausreißer im Bild (Pixel = 250, umgeben von Pixeln ≈ 20)
-
-**Vor Gauss-Filter:**
-```
-  20  20  20  20  20
-  20  20 250  20  20     ← einzelner heller "Spike"
-  20  20  20  20  20
-  20  20  20  20  20
-```
-
-**Nach Gauss-Filter (5×5 Kernel):**
-```
-Neuer Wert =
-  0.195 × 250 (Mitte)
-+ 0.071 × 20 × 4 (rechts/oben/unten/links)
-+ 0.025 × 20 × 4 (diagonale Nachbarn)
-+ 0.004 × 20 × 4 (weitere Ecken)
-
-= 48,75 + 5,68 + 2,0 + 0,32
-= 56,75 ≈ 57 (Graustufen)
-```
-
-Der helle Ausreißer wird **stark abgeschwächt** (250 → 57). Das Rauschen ist geglättet.
-
-**Wichtig:** Echte **Kanten bleiben erhalten**, weil die glatte Übergang nicht plötzlich wird.
-:::
-
-::: {.vslam-slide}
-#### Schritt 3a: Bildpyramide — Das Problem der Skalierung
-
-**Szenario:** Eine Straßenlaterne ist eine markante Ecke (Lichtquelle, scharfe Kanten).
-
-- **2 m entfernt:** Laterne ist groß im Bild, Ecken sind deutlich (viele Pixel breit)
-- **10 m entfernt:** Laterne ist klein, Ecken sind kaum noch sichtbar (nur 2–3 Pixel)
-- **100 m entfernt:** Laterne ist nur noch ein Punkt → FAST findet **keine Ecke** mehr
-
-**Das Problem:** FAST Detektor mit fixem 16-Kreis (Radius 3) findet Ecken nur in **bestimmten Größen**. Wenn Objekte zu groß oder zu klein sind, werden sie übersehen.
-
-→ Lösung: Erstelle verschiedene **Größen desselben Bildes** und erkenne Features auf allen Stufen.
-
-**Dieselbe Stelle im Bild — auf Stufe 0 keine Ecke, auf Stufe 6 erkannt:**
-
-- **Links (Stufe 0 — Original 800×400):** Pixel-Werte sehr ähnlich, längster Bogen = 5 → **KEINE Ecke** ✗
-- **Rechts (Stufe 6 — 267×133, 2,99× kleiner):** Kontrast klarer sichtbar, längster Bogen = 13 → **ECKE** ✓
-
-Das Objekt passt auf Stufe 6 besser in den FAST-Kreis (Radius 3 px).
+**Rückprojektion zu echtem Bild:** $x_{original} = x_k \times 1.2^k$
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
-  <img src="images/feature_extraction/pyramide_stufe0_vs_stufe6.png" style="width: 100%; max-height: 560px; object-fit: contain; border-radius: 6px;">
+  <img src="images/feature_extraction/bildpyramide.png" style="width: 100%; max-height: 500px; object-fit: contain;">
 </div>
 ```
+
+**Features erkennen auf allen Stufen:**
+- Große Features auf höheren Ebenen (gröber)
+- Kleine Features auf unteren Ebenen (feiner)
+- Quadtree-Verteilung sorgt für gleichmäßige Verteilung pro Stufe
 :::
 
 ::: {.vslam-slide}
-#### Schritt 3b: Bildpyramide — 8 Stufen mit Skalierungsfaktor 1,2
+#### Schritt 4: FAST Detektor
+Der FAST (Features from Accelerated Segment Test) Detektor identifiziert Ecken durch schnelle Pixelvergleiche im 16er-Kreis um jeden Kandidaten.
 
-Die Bildpyramide erstellt **8 Versionen** desselben Bildes, jede um Faktor **1,2 kleiner**:
-
-$$\text{Stufe}_{k+1} = \text{Stufe}_k \div 1{,}2$$
-
-**Konkrete Größen (bei 800×400 Original):**
-
-| Stufe | Faktor | Pixel | Objektgröße | Anwendung |
-|:---:|:---:|:---:|:---:|:---:|
-| **0** | 1,0× | 800×400 | Große Objekte | Original, nahe Dinge |
-| 1 | 0,83× | 667×333 | | |
-| 2 | 0,69× | 556×278 | | |
-| **3** | 0,58× | 463×231 | **1,73×** kleinere Objekte | Mittelferne |
-| 4 | 0,48× | 385×192 | | |
-| 5 | 0,40× | 320×160 | | |
-| **6** | 0,33× | 266×133 | **2,99×** viel kleinere | Fernere Objekte |
-| **7** | 0,28× | 223×111 | **3,58×** Details | Sehr kleine Punkte |
-
-Jede Stufe kann Features erkennen, die auf der vorherigen Stufe unmöglich sind.
-
-**Konkret:** Eine Ecke, die auf Stufe 0 nicht erkannt wird (Radius 3 ist zu klein im Objekt), wird auf Stufe 3 oder 6 deutlich sichtbar.
-
-**Visuell — die 8 Stufen:**
-
-```{=html}
-<div style="margin:20px 0;">
-  <div style="display:flex; align-items:flex-end; gap:6px; justify-content:center; flex-wrap:wrap;">
-    <div style="text-align:center;">
-      <div style="width:100px;height:80px;background:#2a5298;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold;">800×400</div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 0<br>1,0×</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="width:83px;height:67px;background:#2a5298;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:9px;font-weight:bold;">667×333</div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 1<br>0,83×</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="width:70px;height:56px;background:#2a5298;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:bold;">556×278</div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 2<br>0,69×</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="width:58px;height:46px;background:#2a5298;border-radius:4px;display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:bold;">463×231</div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 3<br>0,58×</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="width:48px;height:38px;background:#2a5298;border-radius:3px;display:flex;align-items:center;justify-content:center;color:white;font-size:7px;font-weight:bold;">385×192</div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 4<br>0,48×</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="width:40px;height:32px;background:#2a5298;border-radius:3px;"></div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 5<br>0,40×</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="width:34px;height:27px;background:#2a5298;border-radius:3px;"></div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 6<br>0,33×</div>
-    </div>
-    <div style="text-align:center;">
-      <div style="width:28px;height:22px;background:#e74c3c;border-radius:3px;"></div>
-      <div style="color:#aaa;font-size:11px;margin-top:4px;">Stufe 7<br>0,28×</div>
-    </div>
-  </div>
-  <p style="text-align:center;color:#f0a500;margin-top:12px;font-size:0.9em;">
-    Jede Stufe ist 1,2× kleiner — Features auf allen Stufen erkannt
-  </p>
-</div>
-```
-:::
-
-::: {.vslam-slide}
-#### Schritt 3c: Bildpyramide — Rückrechnung und Sub-Pixel Genauigkeit
-
-**Problem:** Features werden auf **kleinen Stufen** gefunden, aber wir brauchen **Original-Koordinaten**.
-
-**Rückrechnung Formula:**
-
-$$\text{Position}_{\text{original}} = \text{Position}_{\text{Stufe k}} \times 1{,}2^k$$
-
-**Konkret Beispiel:**
-- Feature auf Stufe 6 erkannt bei Pixel $(120, 80)$
-- Skalierungsfaktor: $1{,}2^6 = 2{,}985...$
-- Original-Position: $(120 \times 2{,}99, 80 \times 2{,}99) = (358, 239)$
-
-**Sub-Pixel Genauigkeit:**
-
-Die Rückrechnung mit $1{,}2^k$ bewirkt, dass Features auf **höheren Stufen feinere Positionen** liefern:
-
-| Stufe | Skalierung | Positionsfehler |
-|:---:|:---:|:---:|
-| 0 | 1,0× | ±1,0 px (lockerer) |
-| 3 | 1,73× | **±0,58 px** (besser) |
-| 7 | 3,58× | **±0,28 px** (am feinsten) |
-
-→ Ein Feature auf Stufe 7 ist über 3× genauer als auf Stufe 0!
-
-**Resultat:** Wir bekommen gleichzeitig **Skalierungsinvarianz** (Features in allen Größen) und **Sub-Pixel Genauigkeit** (feine Positionen).
-:::
-
-::: {.vslam-slide}
-#### Schritt 4a: FAST Detektor — Das Konzept
-
-**FAST** = **Features from Accelerated Segment Test**
-
-**Kernidee:** Eine Ecke ist ein Ort, wo sich Helligkeit **in mehrere Richtungen** plötzlich ändert.
-
-**Methode — für jeden Pixel p:**
-1. Zeichne einen **Kreis mit 16 Nachbarn** (Radius 3 Pixel)
-2. Prüfe jeden Nachbarn: ist er **signifikant heller** oder **signifikant dunkler** als p?
-3. Zähle **zusammenhängende** Nachbarn der gleichen Art
-4. Falls ≥ 9 zusammenhängend → **Ecke erkannt**
-
-**Warum 16 Nachbarn?**
-- Radius 3 ist schnell zu berechnen
-- 16 gute Abdeckung des Umkreises
-- 9/16 ist eine gute Schwelle (mehr als die Hälfte)
-
-**Warum zusammenhängend?**
-- Verhindert Verwechslung mit Rauschen
-- Einzelne unterschiedliche Pixel sind nicht aussagekräftig
-- Ecke = **mehrere Pixel hintereinander** anders
+**Regel:** Eine Ecke liegt vor, wenn mindestens 9 der 16 Nachbar-Pixel konsistent heller oder dunkler als der Center-Pixel sind (mit Threshold).
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
   <img src="images/feature_extraction/fast_detektor.png" style="width: 100%; max-height: 500px; object-fit: contain;">
 </div>
 ```
-:::
 
-::: {.vslam-slide}
-#### Schritt 4b: FAST Detektor — Der Schwellenwert t
-
-Nicht jede kleine Helligkeitsänderung ist eine echte Ecke. Deshalb verwendet FAST einen **Schwellenwert t**:
-
-**Ein Nachbar-Pixel zählt als:**
-- **Heller:** $I_{\text{Nachbar}} > I_p + t$
-- **Dunkler:** $I_{\text{Nachbar}} < I_p - t$
-- **Ähnlich:** $|I_{\text{Nachbar}} - I_p| \leq t$ (zählt **nicht**)
-
-**Typische Werte:** $t = 5$ bis $20$ (abhängig von Kamera und Szene)
-
-**Warum ist t so wichtig?**
-
-**Ohne Threshold ($t=0$):**
-- Jeder kleine Rausch wird als Unterschied gezählt
-- Überall „Ecken" erkannt (besonders bei schlechtem Licht)
-- Detektor ist zu laut und unzuverlässig
-
-**Mit gutem Threshold ($t=15$):**
-- Nur **deutliche** Helligkeitssprünge zählen
-- Rauschen wird ignoriert (< 15 ist nicht signifikant)
-- Nur echte Ecken werden erkannt
-
-**Visuelle Analogie:**
-```
-Pixel p = 100
-Nachbar A = 105  (Unterschied 5)  → mit t=20: ähnlich (nicht gezählt)
-Nachbar B = 125  (Unterschied 25) → mit t=20: heller (gezählt!)
-Nachbar C = 080  (Unterschied 20) → mit t=20: grenzwertig, nicht dunkler
-```
-
-Mit $t=20$ zählt nur B. Kleine Schwankungen werden ignoriert.
-:::
-
-::: {.vslam-slide}
-#### Schritt 4c: FAST Detektor — Konkrete Beispiele
-
-**Die 16er-Kreis-Maske um Pixel p:**
-
-```
-        1   2   3
-    16              4
-    15      p       5
-    14              6
-    13  12  11  10  7  8  9
-```
-
-**Beispiel 1 — Ecke erkannt:**
-- Pixel p = 100, Threshold t = 15
-- Nachbarn 1–10 sind alle 120+ (heller als 115)
-- **10 zusammenhängende** heller → **ECKE** ✓
-
-**Beispiel 2 — Keine Ecke:**
-- Pixel p = 100, Threshold t = 15
-- Nachbarn sind verstreut: einige 120, andere 110, manche 100
-- Längster zusammenhängender Bogen: nur 4 Nachbarn
-- Weniger als 9 → **keine Ecke** ✗
-
-**Beispiel 3 — Reine Kante (nicht Ecke):**
-- Nachbarn 1–8 alle dunkler (< 85)
-- Nachbarn 9–16 alle heller (> 115)
-- **Aber:** Helle und Dunkle sind nicht in **einer** Gruppe zusammenhängend
-- Dunkle haben max. 8 zusammenhängend, Helle haben max. 8 zusammenhängend
-- Weniger als 9 **zusammenhängend derselben Art** → **keine Ecke, nur Kante** ✗
-
-**Resultat:** FAST ist **extrem schnell** (Vergleiche statt Mathematik), ideal für Echtzeit-Systeme mit 30–60 FPS.
+**Vorteil:** Sehr schnell, daher ideal für Echtzeit-SLAM.
 :::
 
 
 ::: {.vslam-slide}
-#### Schritt 5: Harris Corner Scoring — Qualitätsbewertung
+#### Schritt 6: Quadtree-Verteilung
+Features können ungleichmäßig verteilt sein (z.B. gehäuft an Kanten).
+Der Quadtree-Algorithmus teilt das Bild in 4 Quadranten, limitiert die Features pro Quadrant und achtet auf Gleichverteilung.
 
-FAST liefert **Kandidaten** (ca. 275), aber nicht alle sind gleich hochwertig. Der **Harris Detektor** bewertet die Qualität über lokale Gradienten.
-
-**Gradienten — wie schnell Helligkeit sich ändert:**
-
-$$I_x = \frac{\partial I}{\partial x} \quad \text{(Änderung horizontal)}$$
-$$I_y = \frac{\partial I}{\partial y} \quad \text{(Änderung vertikal)}$$
-
-**Beispiel einer Kante** (200→50 über 2 Pixel):
-- $I_x = \frac{50-200}{2} = -75$ (schneller Helligkeitssturz)
-- $I_y \approx 0$ (keine vertikale Änderung)
-
-**Die Struktur-Matrix M — drei Summen über ein Fenster:**
-
-$$S_{xx} = \sum_{i,j} I_x(i,j)^2, \quad S_{yy} = \sum_{i,j} I_y(i,j)^2, \quad S_{xy} = \sum_{i,j} I_x(i,j) \cdot I_y(i,j)$$
-
-Diese drei Werte bilden die **2×2 Struktur-Matrix** M.
-
-**Die Harris-Response Formula:**
-
-$$R = \det(M) - k \cdot [\text{tr}(M)]^2 \quad (k \approx 0{,}04)$$
-
-**Interpretation — was sagt uns R?**
-
-| R-Wert | Bedeutung | Typ |
-|:---:|:---|:---:|
-| **R ≫ 0** | Änderung in **beiden** Richtungen (x und y) | **Ecke** ✓ |
-| **R ≪ 0** | Starke Änderung in nur **einer** Richtung | **Kante** |
-| **R ≈ 0** | Keine Änderung in Richtungen | **Flach** |
-
-Je höher R, desto robuster die Ecke gegen Rotation und Rauschen.
+**Ergebnis:** ~500 Features gleichmäßig über das gesamte Sichtfeld verteilt.
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
-  <img src="images/feature_extraction/harris_scoring.png" style="width: 100%; max-height: 500px; object-fit: contain;">
+  <img src="images/feature_extraction/quadtree.png" style="width: 100%; max-height: 400px; object-fit: contain;">
 </div>
 ```
 :::
 
 ::: {.vslam-slide}
-#### Schritt 6a: Quadtree-Verteilung — Das Problem
+#### Schritt 7: Harris Corner Scoring
+Der Harris Corner Detector bewertet Corners robuster als reiner FAST durch eine mathematische Analyse der lokalen Gradienten.
 
-FAST findet **zu viele Ecken** (ca. 275), besonders:
-- An Kanten (lineare Objekte)
-- Textur-reiche Bereiche (Rasen, Stoff, Baustellen)
-- Clustered — nicht gleichmäßig verteilt
-
-**Warum ist das ein Problem?**
-
-- **Redundanz:** 10 Ecken auf einer Türkante geben redundante Information
-- **Ungleichmäßigkeit:** Eine buschige Textur hat 50 Features, eine glatte Wand 0
-- **Rechenzeit:** Feature-Matching über 275 Punkte ist langsamer als über 40
-- **Stabilität:** Redundante Features sind anfällig für Rauschen/Fehler
-
-**Ideal wären:** ~40–50 Punkte, **gleichmäßig über das ganze Bild verteilt**, alle hochwertig.
+**Formel:** $R = \det(M) - k \cdot \text{tr}(M)^2$ mit M = Gradient-Strukturmatrix
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
-  <img src="images/feature_extraction/quadtree_vorher_nachher.png" style="width: 100%; max-height: 420px; object-fit: contain;">
+  <img src="images/feature_extraction/harris.png" style="width: 100%; max-height: 500px; object-fit: contain;">
 </div>
 ```
-:::
 
-::: {.vslam-slide}
-#### Schritt 6b: Quadtree — Die Selektion
-
-**Quadtree-Algorithmus:**
-
-1. Teile das Bild in **rechteckige Gitter-Zellen** (z.B. 4×4 oder 8×6 Zellen)
-2. **Pro Zelle:** Behalte nur die **eine stärkste FAST-Ecke** (höchster Harris-Score R)
-3. Wenn eine Zelle zu wenige Features hat → rekursiv weiter unterteilen
-
-**Resultat:** Features sind **gleichmäßig verteilt**, jede ist hochwertig (bewertet durch Harris).
-
-**Die vollständige Pipeline-Reihenfolge:**
-
-```
-RGB-Bild
-  ↓
-Graustufen + Gauss-Filter (entrauschte Graustufen)
-  ↓
-Bildpyramide (8 Stufen)
-  ↓
-FAST auf allen Stufen (→ ca. 275 Kandidaten pro Stufe)
-  ↓
-Harris-Scoring (bewertet jede Ecke mit Score R)
-  ↓
-Quadtree-Selektion (behalte beste pro Zelle → 40–73 Features)
-  ↓
-Finale 40–500 hochwertige, verteilte, robuste Keypoints
-```
-
-**Konkrete Zahlen** (aus Präsentation, Folie 12):
-- Nach FAST: **~787** Kandidaten (alle 8 Stufen zusammen)
-- Nach Quadtree: **~73** Features (1 pro Zelle)
-- Nach Top-Harris: **~40** beste (wenn wir nur Top 40 nehmen)
+**Vorteil:** Robuster gegen Rotation und Skalierung als FAST allein.
 :::
 
 
 ::: {.vslam-slide}
-#### Schritt 7a: Der Feature-Extraction Trichter
+#### Die vollständige Feature-Extraction Pipeline
+Zusammenfassung aller Schritte von Rohbild zu finalen Features:
 
-Die Pipeline ist ein **Trichter** — **Menge sinkt, Qualität steigt:**
+1. **Schritt 1-2:** Graustufen + Rausch-Filterung
+2. **Schritt 3:** Multi-Skalierungen via Bildpyramide
+3. **Schritt 4:** FAST-Feature auf allen Stufen
+4. **Schritt 6:** Quadtree-Gleichverteilung
+5. **Schritt 7:** Harris-Scoring für Robustheit
 
-$$\text{ca. 787 FAST-Ecken} \xrightarrow[\text{Verteilung}]{\text{Quadtree}} \text{73 ausgewählte} \xrightarrow[\text{Top-Scoring}]{\text{Harris}} \text{40 beste}$$
-
-**Jeder Schritt reduziert die Menge, verbessert die Qualität:**
-
-| Stufe | Anzahl | Eigenschaft |
-|:---|:---:|:---|
-| **Nach FAST** | ~787 | Viele, clustered, unterschiedliche Qualität |
-| **Nach Quadtree** | ~73 | Weniger, gleichmäßig verteilt, gemischt |
-| **Nach Top-Harris** | ~40 | Wenige, beste, sehr robust |
-
-**Die visuelle Metapher — ein Trichter:**
-```
-FAST      Quadtree    Harris
-  ↓         ↓           ↓
-[Viel]    [Mittel]    [Wenig]
-  787 →      73  →      40
-```
-
-Weniger Features bedeutet:
-- ✓ Weniger Rechenzeit beim Matching
-- ✓ Bessere Stabilität (nur zuverlässige Features)
-- ✓ Gleichmäßige Abdeckung (gutes Tracking über ganzes Bild)
-:::
-
-::: {.vslam-slide}
-#### Schritt 7b: Eigenschaften der finalen Keypoints
-
-**Die finalen 40–500 Features haben wichtige Eigenschaften:**
-
-**1. Rotationsinvarianz**
-- Jede Ecke bekommt eine **Orientierung θ** (Richtung zum Helligkeits-Schwerpunkt)
-- Diese wird später für Deskriptoren verwendet
-- Dieselbe Ecke wird erkannt, auch wenn Kamera sich dreht
-
-**2. Multi-Skalierbarkeit**
-- Features auf **allen 8 Pyramidenstufen** erkannt
-- Funktioniert für Objekte in verschiedenen Entfernungen
-- Große und kleine Features gleich robust
-
-**3. Robustheit**
-- Harris-Scoring filtert schwache Ecken aus
-- Nur echte Struktur bleibt (Kanten und Beleuchtungswechsel)
-- Stabil gegen Rauschen, Beleuchtungsänderungen, Bewegungsunschärfe
-
-**4. Gleichmäßige Verteilung**
-- Quadtree garantiert, dass Features über ganzes Bild verteilt sind
-- Nicht nur in textur-reichen Bereichen
-- Besseres Tracking und 3D-Rekonstruktion
-
-**5. Zeiteffizienz**
-- Insgesamt ~40–500 Features (nicht Millionen Pixel)
-- Weitere Verarbeitung (Matching, Pose-Schätzung) schnell
-- Echtzeit-Fähigkeit für 30–60 FPS möglich
-:::
-
-::: {.vslam-slide}
-#### Schritt 7c: Was passiert nach Feature Extraction?
-
-Die 40–500 Keypoints werden jetzt verwendet für:
-
-**1.2 — Visuelle Odometrie (VO)**
-- Diese Punkte werden in **nächstem Bild** gesucht
-- Ihre Bewegung verrät, wie sich die Kamera bewegt
-- Berechnet Rotation (R) und Translation (t)
-
-**2.1 — Lokales Mapping**
-- Punkte aus **mehreren Frames** werden trianguliert
-- Aus 2D-Pixel werden echte **3D-Weltkoodinaten**
-- Lokale Karte entsteht
-
-**2.2 — Bundle Adjustment**
-- Kamera-Pose und 3D-Punkte werden gemeinsam optimiert
-- Fehler werden minimiert
-- Konsistente 3D-Karte entsteht
-
-**3.1 / 3.2 — Loop Closure & Drift-Korrektur**
-- Algorithmus erkennt bekannte Orte (Loop Closure)
-- Trajectory-Fehler werden korrigiert (Drift)
-- Globale Konsistenz der Karte wiederhergestellt
-
-**Ohne gute Features → alles downstream fehlerhaft.** Feature Extraction ist die **Foundation für das ganze SLAM-System**.
+**Output:** ~500 hochwertige, gleichverteilte, rotations-robuste Features pro Bild — die Grundlage für VO und Mapping!
 :::
 
 :::
@@ -919,7 +493,7 @@ Die 40–500 Keypoints werden jetzt verwendet für:
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 15</span>
+<span class="vslam-counter">Slide 1 / 7</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
@@ -933,236 +507,58 @@ Die 40–500 Keypoints werden jetzt verwendet für:
 ::: {.vslam-slides}
 
 ::: {.vslam-slide}
-#### Konzept: Was ist Visuelle Odometrie?
-
-Die 40–500 Keypoints aus 1.1 sind nur **Punkte im Bild** — noch keine Bewegung. Visuelle Odometrie (VO) berechnet daraus, **wie sich die Kamera bewegt hat**.
-
-**Grundprinzip:**
-1. Frame $k$: Features erkannt an Position $(x, y)$
-2. Frame $k+1$: Dieselben Features an neuer Position $(x', y')$
-3. Aus der Verschiebung → Kamerabewegung schätzen
-
-**VO-Pipeline in 4 Schritten:**
-1. **Orientierung θ** — jeder Keypoint bekommt eine Richtung
-2. **Binärer Deskriptor** — Fingerabdruck aus 256 Bits
-3. **Matching** — Deskriptoren zwischen Frames vergleichen
-4. **Pose-Schätzung** — Rotation R und Translation t berechnen
-
-**Resultat:** Position und Orientierung der Kamera — Frame für Frame.
+#### Konzept
+Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum)
+basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern
+des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 1: Orientierung θ — Rotationsinvarianz
+#### Feature Matching (Frame-to-Frame)
+Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen
+voraus (Frame to Frame) und nennt sich 'Feature Matching'. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der
+Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann
+über Stereo-Kameras erreicht werden.
+:::
 
-Wenn die Kamera sich dreht, sieht dieselbe Ecke aus einem anderen Winkel aus. Ohne Orientierung würde das Matching fehlschlagen.
-
-**Lösung:** Jede Ecke bekommt eine Orientierung θ — die Richtung zum **Helligkeits-Schwerpunkt** im 31×31 Patch.
-
-**Berechnung über Momente:**
-$$m_{00} = \sum I, \quad m_{10} = \sum x \cdot I, \quad m_{01} = \sum y \cdot I$$
-$$\theta = \text{atan2}(m_{01},\, m_{10})$$
-
-**Konkretes Beispiel (3×3 Patch):**
-- Helle Pixel rechts-unten: $m_{10} = +160$, $m_{01} = +80$
-- $\theta = \text{atan2}(80, 160) \approx 27°$ → Pfeil zeigt zum Hellen
-
-Dieselbe Ecke ergibt **immer denselben θ** — egal wie die Kamera gedreht ist.
+::: {.vslam-slide}
+#### Visualisierung – Kamerabewegung in Echtzeit
 
 ```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/feature_extraction/vo_orientierung_theta.png" style="width: 100%; max-height: 420px; object-fit: contain; border-radius: 6px;">
+<div style="text-align: center;">
+  <img src="images/vc_anlage_2.gif" width="60%">
+  <figcaption>Kamerabewegung mit visueller Odometrie in Echtzeit</figcaption>
 </div>
 ```
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2a: Binärer Deskriptor — Prinzip
+#### Mathematik – Essential Matrix & Pose Estimation
+Die Essential Matrix beschreibt die Epipolargeometrie zwischen zwei Frames:
 
-Jede Ecke braucht einen **Fingerabdruck** — eine kompakte Beschreibung, die Matching ermöglicht.
+$$E = [t]_\times R$$
 
-**BRIEF-Deskriptor: 256 Pixelpaar-Vergleiche:**
+Mit:
 
-Wähle 256 feste Pixelpaare $(A_i, B_i)$ im 31×31 Patch. Für jedes Paar:
-$$\text{Bit}_i = \begin{cases} 1 & \text{wenn } I(A_i) > I(B_i) \\ 0 & \text{sonst} \end{cases}$$
+- $t$ – Translationsvektor (Kamerabewegung)
+- $R$ – Rotationsmatrix (Drehung)
+- $[t]_\times$ – schiefsymmetrische Matrix von $t$
 
-Ergebnis: ein **256-Bit-String** — der Fingerabdruck der Ecke.
+Aus korrespondierenden Punkten $x, x'$ in den beiden Bildern gilt:
+$$x'^T \, E \, x = 0$$
 
-**Vorteile:**
-- Extrem schnell zu berechnen (nur Vergleiche, keine Mathematik)
-- Kompakt (256 Bit = 32 Bytes pro Feature)
-- Einfach zu vergleichen (Hamming-Distanz via XOR)
+RANSAC entfernt vor der Schätzung von $E$ Outliers (falsche Matches).
 
-```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/feature_extraction/vo_deskriptor_prinzip.png" style="width: 100%; max-height: 480px; object-fit: contain; border-radius: 6px;">
-</div>
-```
+*TBD: Triangulation für initiale 3D-Tiefe ergänzen.*
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2b: Binärer Deskriptor — Rotationsinvarianz (steered BRIEF)
+#### Exkurs – Visual Inertial Odometry (VIO)
+Alternative Ansätze zur Bewegungsbestimmung einer Kamera fusionieren visuelle
+Informationen mit Inertialsensoren (IMU): Beschleunigung und Drehrate ergänzen
+die optische Schätzung gerade bei schnellen Bewegungen oder texturarmen Szenen.
 
-**Problem:** Wenn die Kamera sich dreht, lesen die festen Paare andere Pixel ab → anderer Bitstring → kein Match.
-
-**Lösung — steered BRIEF:** Die Pixelpaare werden um den Winkel **θ gedreht**, bevor sie abgelesen werden.
-
-$$\begin{pmatrix} x' \\ y' \end{pmatrix} = \begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix} \begin{pmatrix} x \\ y \end{pmatrix}$$
-
-- **Ohne Rotation:** Paare in fester Position → verschiedene Bits bei gedrehter Kamera
-- **Mit Rotation um θ:** Paare drehen sich mit → **gleiche Bits** trotz Kameradrehung
-
-Dasselbe Feature ergibt **immer denselben 256-Bit-String** — rotationsinvariant!
-
-```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/feature_extraction/vo_deskriptor_rotation.png" style="width: 100%; max-height: 440px; object-fit: contain; border-radius: 6px;">
-</div>
-```
-:::
-
-::: {.vslam-slide}
-#### Schritt 3a: Feature Matching — Hamming-Distanz
-
-**Ziel:** Finde dieselbe Ecke in zwei aufeinanderfolgenden Frames.
-
-**Methode — Hamming-Distanz:** Vergleiche zwei 256-Bit-Strings per XOR. Zähle unterschiedliche Bits.
-
-$$d_H(A, B) = \text{popcount}(A \oplus B)$$
-
-**Interpretation:**
-- **Wenige unterschiedliche Bits** (z.B. 8/256) → wahrscheinlich **dieselbe Ecke** ✓
-- **Viele unterschiedliche Bits** (z.B. 107/256) → **andere Ecke** ✗
-
-**Konkret:** Gleiche Ecke: Hamming = 8 (3,1% Unterschied). Andere Ecke: Hamming = 107 (41,8% Unterschied). Der Unterschied ist deutlich!
-
-```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/feature_extraction/vo_hamming_distanz.png" style="width: 100%; max-height: 480px; object-fit: contain; border-radius: 6px;">
-</div>
-```
-:::
-
-::: {.vslam-slide}
-#### Schritt 3b: Feature Matching — Lowe Ratio-Test
-
-**Problem:** Ähnliche Stellen im Bild (z.B. gleiche Fenstermuster) passen mehrfach → falsche Matches.
-
-**Lösung — Lowe Ratio-Test:**
-1. Finde die **zwei besten Matches** für jede Ecke (Hamming-Distanz $d_1 < d_2$)
-2. Behalte nur wenn: $\dfrac{d_1}{d_2} < 0{,}75$
-
-**Bedeutung:** Der beste Match muss **deutlich besser** sein als der zweitbeste.
-
-**Konkrete Beispiele:**
-- $d_1 = 12$, $d_2 = 80$ → $12/80 = 0{,}15 < 0{,}75$ → **behalten** ✓ (eindeutig)
-- $d_1 = 40$, $d_2 = 45$ → $40/45 = 0{,}89 > 0{,}75$ → **verwerfen** ✗ (zu ähnlich)
-
-**Resultat:** Nur grüne Matches übrig — zuverlässige, eindeutige Korrespondenzen.
-
-```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/feature_extraction/vo_feature_matching.png" style="width: 100%; max-height: 300px; object-fit: contain; border-radius: 6px;">
-</div>
-<p style="text-align:center; color:#aaa; font-size:0.85em; margin-top:6px;">377 gute Matches zwischen zwei Frames — grüne Linien verbinden dieselbe Ecke</p>
-```
-:::
-
-::: {.vslam-slide}
-#### Schritt 4a: Pose-Schätzung — Essential Matrix
-
-Aus den gematchten Punktpaaren $(x, x')$ berechnen wir **Rotation R** und **Translation t** der Kamera.
-
-**Epipolar-Bedingung:** Für jedes korrekte Punktpaar gilt:
-$$x'^T \cdot E \cdot x = 0$$
-
-**Essential Matrix E** kodiert Rotation und Translation:
-$$E = [t]_\times \cdot R$$
-
-Wo $[t]_\times$ die schiefsymmetrische Matrix von $t$ ist.
-
-**Pipeline:**
-1. `findEssentialMat` mit **RANSAC** — berechnet E aus mind. 5 Paaren, markiert Outlier
-2. `recoverPose` zerlegt E per **SVD** in R und t
-3. **Einschränkung:** t hat nur Richtung — bei Mono-Kamera bleibt die echte Strecke unbekannt
-
-RANSAC = Random Sample Consensus: probiert zufällige Teilmengen, wählt das Modell mit den meisten Inliern.
-:::
-
-::: {.vslam-slide}
-#### Schritt 4b: Pose-Schätzung — Inlier & Outlier
-
-RANSAC unterscheidet:
-- **Inlier:** Punkte, die zur geschätzten Bewegung passen ($x'^T E x \approx 0$)
-- **Outlier:** Punkte, die nicht passen → verworfen
-
-**Konkretes Ergebnis aus echten Frames:**
-
-```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/feature_extraction/vo_pose_inlier_outlier.png" style="width: 100%; max-height: 480px; object-fit: contain; border-radius: 6px;">
-</div>
-```
-
-- **Grün** = Inlier (44 Punkte) — passen zur Bewegung ✓
-- **Rot** = Outlier (14 Punkte) — verworfen ✗
-- Translation zeigt nach **vorne** (Kamera fährt vorwärts)
-- Rotation = fast reines **Gieren** (leichte Rechtsdrehung)
-:::
-
-::: {.vslam-slide}
-#### Schritt 5: Trajektorie — Akkumulation der Bewegung
-
-Jedes Frame-Paar liefert nur die **relative** Bewegung ($R$, $t$). Die **Trajektorie** entsteht durch Aufsummieren.
-
-**Algorithmus:**
-$$P_{\text{neu}} = P_{\text{alt}} + R_{\text{global}} \cdot t$$
-$$R_{\text{global}} = R_{\text{global}} \cdot R$$
-
-- $R_{\text{global}}$ dreht das lokale „vorne" in die **Weltrichtung**
-- Start: $P_0 = (0,0,0)$, $R_{\text{global}} = I$
-
-**Konkretes 2D-Beispiel (t immer (1,0)):**
-
-| Schritt | θ | $R_{\text{global}} \cdot t$ | Neue Position |
-|:---:|:---:|:---:|:---:|
-| 1 | 0° | $(+1, 0)$ | $(1, 0)$ |
-| 2 | 90° | $(0, +1)$ | $(1, 1)$ |
-| 3 | 180° | $(-1, 0)$ | $(0, 1)$ |
-
-Lokales „vorne" bleibt gleich — aber die Weltrichtung dreht sich!
-
-```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/feature_extraction/vo_trajektorie.png" style="width: 100%; max-height: 440px; object-fit: contain; border-radius: 6px;">
-</div>
-```
-:::
-
-::: {.vslam-slide}
-#### Zusammenfassung 1.2 & Ausblick
-
-**1.2 Visuelle Odometrie — vollständige Pipeline:**
-
-1. **θ (Orientierung):** Helligkeits-Schwerpunkt → rotationsinvariante Richtung
-2. **Deskriptor:** 256 Pixelpaar-Vergleiche → Bit-String (steered BRIEF)
-3. **Matching:** Hamming-Distanz + Ratio-Test → zuverlässige Korrespondenzen
-4. **Essential Matrix E:** Epipolar-Bedingung + RANSAC → Inlier filtern
-5. **Pose (R, t):** SVD-Zerlegung → Rotation und Translation
-6. **Trajektorie:** $P = P + R_{\text{global}} \cdot t$ → Kameraweg
-
-**Verbleibende Probleme:**
-- **Drift:** Kleine Fehler summieren sich → Trajektorie weicht ab
-- **Nur 2D:** Punkte haben noch keine echte Tiefe (3D-Koordinaten fehlen)
-- **Skalierung:** Mono-Kamera kennt keine absoluten Abstände
-
-→ Diese Probleme lösen **2.1 Lokales Mapping** (3D-Rekonstruktion) und **3.1/3.2 Loop Closure** (Drift-Korrektur).
-
-```{=html}
-<div style="text-align: center; margin: 16px 0;">
-  <img src="images/vc_anlage_2.gif" width="60%" style="border-radius: 6px;">
-  <p style="color:#aaa; font-size:0.85em; margin-top:6px;">Kamerabewegung mit visueller Odometrie in Echtzeit</p>
-</div>
-```
+*TBD: Sensor-Fusion / Kalman-Filter / Tightly-vs.-Loosely-Coupled.*
 :::
 
 :::
@@ -1170,7 +566,7 @@ Lokales „vorne" bleibt gleich — aber die Weltrichtung dreht sich!
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 10</span>
+<span class="vslam-counter">Slide 1 / 5</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
