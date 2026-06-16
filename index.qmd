@@ -837,6 +837,175 @@ Die 40–500 Keypoints werden jetzt verwendet für:
 :::
 
 
+<!-- ================================================================
+     INTERAKTIV: Hamming-Distanz Rechner (zwischen 1.1 und 1.2)
+     Zum Entfernen: diesen Block bis zur schließenden Zeile löschen
+     ================================================================ -->
+```{=html}
+<details style="margin: 2rem 0; border: 2px solid #3498db; border-radius: 10px; overflow: hidden;">
+<summary style="background: #2c3e50; color: white; padding: 14px 20px; cursor: pointer; font-size: 1.05rem; font-weight: bold; list-style: none; display: flex; align-items: center; gap: 10px;">
+  <span style="font-size: 1.3rem;">🔬</span>
+  Interaktiv ausprobieren: Hamming-Distanz Rechner — wie erkennt das System dieselbe Ecke?
+  <span style="margin-left: auto; font-size: 0.85rem; font-weight: normal; color: #aaa;">▼ aufklappen</span>
+</summary>
+<div style="padding: 24px; background: #1a1a2e;">
+
+  <p style="color: #aaa; margin-bottom: 20px; font-size: 0.95rem;">
+    Zwei Deskriptoren (je 16 Bits zur Vereinfachung). Klicke auf einzelne Bits um sie zu ändern — sieh live wie sich die Hamming-Distanz ändert und ob das Match behalten wird.
+  </p>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px;">
+
+    <!-- Deskriptor A -->
+    <div>
+      <div style="color: #3498db; font-weight: bold; margin-bottom: 10px; font-size: 0.95rem;">Deskriptor A (Frame k)</div>
+      <div id="bits-a" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+      <button onclick="randomize('a')" style="margin-top: 10px; background: #2c3e50; color: #aaa; border: 1px solid #444; border-radius: 5px; padding: 5px 12px; cursor: pointer; font-size: 0.8rem;">↺ Zufällig</button>
+    </div>
+
+    <!-- Deskriptor B -->
+    <div>
+      <div style="color: #e67e22; font-weight: bold; margin-bottom: 10px; font-size: 0.95rem;">Deskriptor B (Frame k+1)</div>
+      <div id="bits-b" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+      <button onclick="randomize('b')" style="margin-top: 10px; background: #2c3e50; color: #aaa; border: 1px solid #444; border-radius: 5px; padding: 5px 12px; cursor: pointer; font-size: 0.8rem;">↺ Zufällig</button>
+    </div>
+
+  </div>
+
+  <!-- XOR Visualisierung -->
+  <div style="background: #0d1117; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+    <div style="color: #aaa; font-size: 0.85rem; margin-bottom: 8px;">XOR-Ergebnis (rot = unterschiedlich):</div>
+    <div id="bits-xor" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+  </div>
+
+  <!-- Ergebnis -->
+  <div id="result-box" style="border-radius: 8px; padding: 16px; text-align: center; transition: background 0.3s;">
+    <div id="hamming-score" style="font-size: 2rem; font-weight: bold;"></div>
+    <div id="hamming-label" style="font-size: 0.95rem; margin-top: 6px;"></div>
+    <div id="ratio-hint" style="font-size: 0.85rem; margin-top: 8px; color: #aaa;"></div>
+  </div>
+
+  <!-- Voreinstellungen -->
+  <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
+    <span style="color: #aaa; font-size: 0.85rem; align-self: center;">Beispiele:</span>
+    <button onclick="loadPreset('same')" style="background: #1a3a1a; color: #2ecc71; border: 1px solid #2ecc71; border-radius: 5px; padding: 5px 14px; cursor: pointer; font-size: 0.82rem;">Gleiche Ecke (Hamming ≈ 8)</button>
+    <button onclick="loadPreset('diff')" style="background: #3a1a1a; color: #e74c3c; border: 1px solid #e74c3c; border-radius: 5px; padding: 5px 14px; cursor: pointer; font-size: 0.82rem;">Andere Ecke (Hamming ≈ 107)</button>
+    <button onclick="loadPreset('border')" style="background: #2a2a1a; color: #f0a500; border: 1px solid #f0a500; border-radius: 5px; padding: 5px 14px; cursor: pointer; font-size: 0.82rem;">Grenzfall (Hamming ≈ 50)</button>
+  </div>
+
+</div>
+</details>
+
+<script>
+(function() {
+  const N = 16;
+  let bitsA = Array.from({length: N}, () => Math.random() > 0.5 ? 1 : 0);
+  let bitsB = Array.from({length: N}, (_, i) => bitsA[i]);
+
+  // Starte mit "gleiche Ecke" Beispiel (wenige Unterschiede)
+  [2, 7, 11].forEach(i => { bitsB[i] = 1 - bitsB[i]; });
+
+  function renderBits(id, bits, which) {
+    const el = document.getElementById('bits-' + id);
+    if (!el) return;
+    el.innerHTML = '';
+    bits.forEach((b, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = b;
+      btn.style.cssText = `width:32px;height:32px;border-radius:5px;border:none;cursor:pointer;font-weight:bold;font-size:1rem;transition:background 0.15s;background:${b ? '#2a5298' : '#2a2a2a'};color:${b ? '#7fb3f5' : '#666'};`;
+      btn.onclick = () => {
+        bits[i] = 1 - bits[i];
+        renderAll();
+      };
+      el.appendChild(btn);
+    });
+  }
+
+  function renderXOR() {
+    const el = document.getElementById('bits-xor');
+    if (!el) return;
+    el.innerHTML = '';
+    bitsA.forEach((b, i) => {
+      const xor = b ^ bitsB[i];
+      const btn = document.createElement('div');
+      btn.textContent = xor;
+      btn.style.cssText = `width:32px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:1rem;background:${xor ? '#5a1a1a' : '#1a2a1a'};color:${xor ? '#e74c3c' : '#2ecc71'};`;
+      el.appendChild(btn);
+    });
+  }
+
+  function renderResult() {
+    const hamming = bitsA.reduce((sum, b, i) => sum + (b ^ bitsB[i]), 0);
+    const pct = Math.round(hamming / N * 100);
+    const box = document.getElementById('result-box');
+    const score = document.getElementById('hamming-score');
+    const label = document.getElementById('hamming-label');
+    const hint = document.getElementById('ratio-hint');
+    if (!box) return;
+    score.textContent = `Hamming = ${hamming} / ${N} Bits (${pct}%)`;
+    if (hamming <= 3) {
+      box.style.background = '#0a2a0a';
+      score.style.color = '#2ecc71';
+      label.innerHTML = '✓ Sehr wahrscheinlich <strong style="color:#2ecc71">dieselbe Ecke</strong> — sehr guter Match';
+      hint.textContent = 'In echt (256 Bits): Hamming ≤ 50 → Match behalten';
+    } else if (hamming <= 6) {
+      box.style.background = '#0a2a0a';
+      score.style.color = '#27ae60';
+      label.innerHTML = '✓ Wahrscheinlich <strong style="color:#27ae60">dieselbe Ecke</strong>';
+      hint.textContent = 'Lowe Ratio-Test würde diesen Match behalten';
+    } else if (hamming <= 9) {
+      box.style.background = '#2a2a0a';
+      score.style.color = '#f0a500';
+      label.innerHTML = '⚠ <strong style="color:#f0a500">Grenzfall</strong> — Ratio-Test entscheidet';
+      hint.textContent = 'Hängt davon ab, wie gut der zweitbeste Match ist (d1/d2 Verhältnis)';
+    } else {
+      box.style.background = '#2a0a0a';
+      score.style.color = '#e74c3c';
+      label.innerHTML = '✗ Wahrscheinlich <strong style="color:#e74c3c">andere Ecke</strong> — zu viele Unterschiede';
+      hint.textContent = 'In echt (256 Bits): Hamming ≥ 100 → Match verwerfen';
+    }
+  }
+
+  function renderAll() {
+    renderBits('a', bitsA, 'a');
+    renderBits('b', bitsB, 'b');
+    renderXOR();
+    renderResult();
+  }
+
+  window.randomize = function(which) {
+    if (which === 'a') bitsA = Array.from({length: N}, () => Math.random() > 0.5 ? 1 : 0);
+    else bitsB = Array.from({length: N}, () => Math.random() > 0.5 ? 1 : 0);
+    renderAll();
+  };
+
+  window.loadPreset = function(type) {
+    bitsA = Array.from({length: N}, () => Math.random() > 0.5 ? 1 : 0);
+    bitsB = [...bitsA];
+    if (type === 'same') {
+      // ~2/16 Unterschiede (entspricht 8/256 in echt)
+      [3, 11].forEach(i => { bitsB[i] = 1 - bitsB[i]; });
+    } else if (type === 'diff') {
+      // ~7/16 Unterschiede (entspricht 107/256 in echt)
+      [0,2,4,5,7,9,13].forEach(i => { bitsB[i] = 1 - bitsB[i]; });
+    } else {
+      // ~5/16 Grenzfall
+      [1,4,7,9,12].forEach(i => { bitsB[i] = 1 - bitsB[i]; });
+    }
+    renderAll();
+  };
+
+  // Initial render
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderAll);
+  } else {
+    renderAll();
+  }
+})();
+</script>
+```
+<!-- END INTERAKTIV BLOCK -->
+
 ## 1.2 Visuelle Odometrie
 
 ::: {.vslam-slider}
