@@ -15,14 +15,14 @@ bibliography: references.bib
      ===================================================================== -->
 <style>
   .vslam-slider {
-    position: relative;
     border: 1px solid #e3e3e3;
     border-radius: 12px;
-    padding: 1.25rem 1.5rem 3.5rem 1.5rem;
+    padding: 1.25rem 1.5rem 1rem 1.5rem;
     margin: 1.5rem 0 2rem 0;
     background: #fafafa;
     box-shadow: 0 1px 3px rgba(0,0,0,.04);
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
   .vslam-slider .vslam-slides { position: relative; min-height: 340px; }
   .vslam-slider .vslam-slide { display: none; animation: vslamFade .35s ease; }
@@ -40,10 +40,11 @@ bibliography: references.bib
   .vslam-slider .vslam-slide figure { margin: 0.5rem 0; }
   .vslam-slider .vslam-slide img { max-width: 100%; height: auto; }
   .vslam-slider .vslam-controls {
-    position: absolute;
-    bottom: .75rem; left: 1.5rem; right: 1.5rem;
     display: flex; align-items: center; justify-content: space-between;
     gap: 1rem;
+    margin-top: 1rem;
+    padding-top: .6rem;
+    border-top: 1px solid #e8ecef;
   }
   .vslam-slider .vslam-btn {
     background: #2c3e50; color: #fff; border: none;
@@ -101,15 +102,35 @@ bibliography: references.bib
 </script>
 ```
 
-### vSLAM Workflow (TUM Dataset)
-### Source
+# vSLAM – Use Cases und grundlegende Funktionsweise
+vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
+kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie
+Indoor-Navigation (z.B. Saugroboter).
 
+Anwendungsbereiche im Detail:
+
+- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und
+  Erstellung von Karten unbekannter Umgebungen/ Räume.
+
+- Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
+  und virtuelle Objekte exakt in die reale Welt einzubetten.
+
+- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung
+  (Spurhalteassistent etc.).
+
+- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in
+  Logistikzentren oder für Roboter in Lagerhallen.
+
+
+
+# Der vSLAM Workflow anhand eines Beispieldatensatzes
+### Eine uns unbekannte Umgebung...
 <video width="100%" controls>
   <source src="images/recording_2020-12-22_12-04-35_5x.mp4" type="video/mp4">
   Dein Browser unterstützt keine Videos.
 </video>
 
-### Karte nach Abschluss des Mappings
+### ... wollen wir mit Hilfe von vSLAM kartieren:
 
 ```{python}
 #| echo: false
@@ -238,26 +259,6 @@ if all_points:
 else:
     print("Keine Daten gefunden.")
 ```
-
-# vSLAM – Use Cases und grundlegende Funktionsweise
-vSLAM (Visual Simultanoeus Localization and Mapping) ermöglicht Geräten, mittels Kameras ihre Position in Echtzeit zu bestimmen und Umgebungen
-kartographisch abzubilden. Hauptanwendungsbereiche sind autonome mobile Roboter/ Drohnen, Augmented Reality (AR/VR), autonomes Fahren sowie
-Indoor-Navigation (z.B. Saugroboter).
-
-Anwendungsbereiche im Detail:
-
-- Robotik und Drohnen: Autonome Staubsauger, Serviceroboter und Drohnen nutzen vSLAM zur Hinderniserkennung, Navigation im Raum und
-  Erstellung von Karten unbekannter Umgebungen/ Räume.
-
-- Augmented & Virtual Reality (AR/VR): vSLAM ist essenziell für Headsets und Smartphones, um die Eigenbewegung präzise zu verfolgen
-  und virtuelle Objekte exakt in die reale Welt einzubetten.
-
-- Autonomes Fahren: Fahzeuge nutzen visuelle Daten zur Positionsbestimmung auf der Straße und der Kartierung der Umgebung
-  (Spurhalteassistent etc.).
-
-- Indoor-Poitionierung: Anwendung in Innenräumen oder Umgebungen ohne GPS. vSLAM ermöglicht die Navigation in Innenräumen, etwa in
-  Logistikzentren oder für Roboter in Lagerhallen.
-
 
 # Zentrale Komponenten des VSLAM Algorithmus
 
@@ -590,7 +591,7 @@ Mehrere Keyframes (z.B. 3)
 
 ```{=html}
 <div style="text-align: center;">
-  <img src="images/lokales_mapping/tracks_konzept.png" width="85%">
+  <img src="images/lokales_mapping/landmarks.png" width="85%">
   <figcaption>Tracks: dasselbe Feature in mehreren Keyframes wiedergefunden (gleiche Farbe = derselbe Landmark)</figcaption>
 </div>
 ```
@@ -647,6 +648,14 @@ Reine Triangulation hat zwei bekannte Schwachstellen:
 - **Schmale Baseline / Stillstand**: Stehen die Kameras zu nahe beieinander, sind die Sehstrahlen fast parallel und die Tiefe wird extrem unsicher (kleinste Pixel-Fehler werden zu riesigen 3D-Fehlern).
 - **Mono-Skalenmehrdeutigkeit**: Eine einzelne Kamera kann **Maßstab** nicht beobachten. Wir fixieren ihn willkürlich (z.B. $\|t_1\| = 1$), alle weiteren Posen müssen konsistent dazu bestimmt werden (im Notebook: per PnP gegen die existierenden 3D-Punkte).
 
+Vor lokaler Optimierung ist der Reproduktionsfehler immer noch signifikant:
+```{=html}
+<div style="text-align: center;">
+  <img src="images/lokales_mapping/pre_local_opt.png" width="80%">
+  <figcaption>Histogramm des Reproduktionsfehlers</figcaption>
+</div>
+```
+
 Beides motiviert direkt den nächsten Schritt – die **lokale Optimierung (Step 2.2)**: alle Posen + Punkte werden gemeinsam so verschoben, dass die gesamten Reprojektionsfehler minimal werden.
 :::
 
@@ -691,8 +700,8 @@ In der Praxis bleibt immer ein Restfehler – dieser wird durch Bundle Adjustmen
 
 ```{=html}
 <div style="text-align: center;">
-  <img src="images/lokales_mapping/reprojektion_schema.png" width="75%">
-  <figcaption>Reprojektionsfehler: Differenz zwischen echtem Pixel (weiß) und zurückprojizierter 3D-Position (rot)</figcaption>
+  <img src="images/lokales_mapping/post_local_opt.png" width="75%">
+  <figcaption>Erwünschtes Resultat: Reprojektionsfehler der Landmarks vor (rot) und nach lokaler Optimierung (grün)</figcaption>
 </div>
 ```
 :::
@@ -1284,11 +1293,335 @@ nur nach erfolgreichem Loop Closure ausgeführt.
 :::
 
 
-## 3.3 Code: Implementierungen
+---
+
+# Code: Implementierungen
+
+### Lokales Mapping und Lokale Optimierung
+<details markdown="1">
+<summary><b>Vollständige Implementierung anzeigen</b></summary>
+```python
+
+"""
+Lokales Mapping + Optimierung — Logik (ohne Plots)
+
+Pipeline (enthält aufgrund Ausführbarkeit 1.1/1.2 vereinfacht):
+  1. Features in allen Keyframes extrahieren
+  2. Tracks über mehrere Frames aufbauen
+  3. Initialposen schätzen (Essential Matrix + PnP)
+  4. Triangulation (N-View DLT) → 3D-Landmarks
+  5. Reprojektionsfehler messen
+  6. Bundle Adjustment (Levenberg-Marquardt)
+"""
+
+import cv2
+import numpy as np
+from scipy.optimize import least_squares
+import os
+
+# ──────────────────────────────────────────────
+# Konfiguration
+# ──────────────────────────────────────────────
+CAM0_ORDNER = "../cam0"
+STRIDE = 30          # Abstand zwischen Keyframes (genug Parallaxe)
+ANZAHL_KEYFRAMES = 3
+Z_MAX = 500          # maximale Tiefe in Mono-Einheiten
+
+# ──────────────────────────────────────────────
+# Keyframes laden
+# ──────────────────────────────────────────────
+bilder = sorted([f for f in os.listdir(CAM0_ORDNER) if f.endswith('.png')])
+keyframe_namen = [bilder[i * STRIDE] for i in range(ANZAHL_KEYFRAMES)]
+
+keyframes_bgr  = [cv2.imread(os.path.join(CAM0_ORDNER, n)) for n in keyframe_namen]
+keyframes_grau = [cv2.cvtColor(b, cv2.COLOR_BGR2GRAY) for b in keyframes_bgr]
+
+h, w = keyframes_bgr[0].shape[:2]
+print(f"Bildgröße: {w} x {h} Pixel")
+
+# ──────────────────────────────────────────────
+# Schritt 1: Features extrahieren
+# ──────────────────────────────────────────────
+orb = cv2.ORB_create(nfeatures=2000)
+
+alle_kp   = []
+alle_desc = []
+for grau in keyframes_grau:
+    kp, desc = orb.detectAndCompute(grau, None)
+    alle_kp.append(kp)
+    alle_desc.append(desc)
+
+# ──────────────────────────────────────────────
+# Schritt 2: Tracks aufbauen
+# ──────────────────────────────────────────────
+matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+def matche(desc_a, desc_b, ratio=0.75):
+    """Lowe's Ratio Test + symmetrischer Check."""
+    knn_ab = matcher.knnMatch(desc_a, desc_b, k=2)
+    knn_ba = matcher.knnMatch(desc_b, desc_a, k=2)
+
+    gut_ab = {m.queryIdx: m.trainIdx for m, n in knn_ab if m.distance < ratio * n.distance}
+    gut_ba = {m.queryIdx: m.trainIdx for m, n in knn_ba if m.distance < ratio * n.distance}
+
+    return [(a, b) for a, b in gut_ab.items() if gut_ba.get(b) == a]
+
+# Paarweise Matches zwischen aufeinanderfolgenden Keyframes
+paar_matches = []
+for i in range(ANZAHL_KEYFRAMES - 1):
+    m = matche(alle_desc[i], alle_desc[i + 1])
+    paar_matches.append(m)
+    print(f"Frame {i} → Frame {i+1}: {len(m)} symmetrische Matches")
+
+# Tracks: kp-Index pro Frame, None wenn nicht sichtbar
+lookup = [dict(m) for m in paar_matches]
+
+tracks = []
+for start_kp in range(len(alle_kp[0])):
+    track = [start_kp]
+    aktuell = start_kp
+    for i in range(ANZAHL_KEYFRAMES - 1):
+        if aktuell in lookup[i]:
+            aktuell = lookup[i][aktuell]
+            track.append(aktuell)
+        else:
+            track.append(None)
+            aktuell = None
+    tracks.append(track)
+
+# Nur Tracks, die in ALLEN Keyframes sichtbar sind
+tracks_voll = [t for t in tracks if all(x is not None for x in t)]
+print(f"\nTracks in allen {ANZAHL_KEYFRAMES} Keyframes: {len(tracks_voll)}")
+
+# ──────────────────────────────────────────────
+# Schritt 3: Initialposen schätzen
+# ──────────────────────────────────────────────
+
+# Kamera-Matrix (geschätzt)
+fx = w * 0.8
+fy = w * 0.8
+cx = w / 2
+cy = h / 2
+K = np.array([[fx,  0, cx],
+              [ 0, fy, cy],
+              [ 0,  0,  1]], dtype=np.float64)
+
+# Kamera 0: Ursprung (fixiert)
+kam_R = [np.eye(3)]
+kam_t = [np.zeros((3, 1))]
+
+# Kamera 1: Essential Matrix aus Paar (0, 1)
+matches01 = paar_matches[0]
+p0 = np.float32([alle_kp[0][a].pt for a, b in matches01])
+p1 = np.float32([alle_kp[1][b].pt for a, b in matches01])
+
+E, _ = cv2.findEssentialMat(p0, p1, K, method=cv2.RANSAC, prob=0.999, threshold=1.0)
+_, R1, t1, _ = cv2.recoverPose(E, p0, p1, K)
+kam_R.append(R1)
+kam_t.append(t1)
+
+print(f"\nKamera 1: t = [{t1[0,0]:+.3f}, {t1[1,0]:+.3f}, {t1[2,0]:+.3f}]")
+print(f"Maßstab fixiert auf ||t1|| = {np.linalg.norm(t1):.3f}")
+
+# Initial-Triangulation (Paar 0-1) für alle vollständigen Tracks
+P0 = K @ np.hstack([kam_R[0], kam_t[0]])
+P1 = K @ np.hstack([kam_R[1], kam_t[1]])
+
+pts0 = np.float32([alle_kp[0][t[0]].pt for t in tracks_voll])
+pts1 = np.float32([alle_kp[1][t[1]].pt for t in tracks_voll])
+
+X_h = cv2.triangulatePoints(P0, P1, pts0.T, pts1.T)
+X_init = (X_h[:3] / X_h[3]).T
+
+def tiefe_in_cam(X, R, t):
+    return (R @ X.T + t).T[:, 2]
+
+tiefe0 = tiefe_in_cam(X_init, kam_R[0], kam_t[0])
+tiefe1 = tiefe_in_cam(X_init, kam_R[1], kam_t[1])
+valide = (tiefe0 > 0) & (tiefe1 > 0) & np.all(np.isfinite(X_init), axis=1) & (tiefe0 < Z_MAX)
+
+X_init = X_init[valide]
+tracks_aktiv = [t for t, ok in zip(tracks_voll, valide) if ok]
+print(f"\nInitiale Triangulation: {len(X_init)} 3D-Punkte")
+
+# Kameras 2, 3, ... per PnP
+for k in range(2, ANZAHL_KEYFRAMES):
+    img_pts = np.float32([alle_kp[k][t[k]].pt for t in tracks_aktiv])
+    ok, rvec, tvec, inliers = cv2.solvePnPRansac(
+        X_init, img_pts, K, distCoeffs=None,
+        reprojectionError=4.0, confidence=0.999, iterationsCount=200
+    )
+    assert ok, f"PnP für Kamera {k} fehlgeschlagen"
+    R_k, _ = cv2.Rodrigues(rvec)
+    kam_R.append(R_k)
+    kam_t.append(tvec.reshape(3, 1))
+    print(f"Kamera {k} (PnP): {len(inliers)} / {len(X_init)} Inlier")
+
+    msk = np.zeros(len(tracks_aktiv), dtype=bool)
+    msk[inliers.ravel()] = True
+    tracks_aktiv = [t for t, ok in zip(tracks_aktiv, msk) if ok]
+    X_init = X_init[msk]
+
+print(f"\nAktive Landmarks: {len(X_init)}")
+
+# ──────────────────────────────────────────────
+# Schritt 4: N-View DLT Triangulation
+# ──────────────────────────────────────────────
+
+def triangulate_multi(track, kp_pro_frame, P_listen):
+    """DLT-Triangulation für einen Track mit beliebig vielen Beobachtungen."""
+    A = []
+    for kfi, kp_idx in enumerate(track):
+        if kp_idx is None:
+            continue
+        x, y = kp_pro_frame[kfi][kp_idx].pt
+        P = P_listen[kfi]
+        A.append(x * P[2] - P[0])
+        A.append(y * P[2] - P[1])
+    A = np.array(A)
+    _, _, Vt = np.linalg.svd(A)
+    X_h = Vt[-1]
+    return X_h[:3] / X_h[3]
+
+P = [K @ np.hstack([R, t]) for R, t in zip(kam_R, kam_t)]
+landmarks = np.array([triangulate_multi(t, alle_kp, P) for t in tracks_aktiv])
+
+# Filter: vor allen Kameras + plausible Tiefe
+valide = np.ones(len(landmarks), dtype=bool)
+for R, t in zip(kam_R, kam_t):
+    z = (R @ landmarks.T + t).T[:, 2]
+    valide &= (z > 0) & (z < Z_MAX)
+valide &= np.all(np.isfinite(landmarks), axis=1)
+
+landmarks    = landmarks[valide]
+tracks_aktiv = [t for t, ok in zip(tracks_aktiv, valide) if ok]
+print(f"\nTriangulierte Landmarks ({ANZAHL_KEYFRAMES}-View DLT): {len(landmarks)}")
+
+# ──────────────────────────────────────────────
+# Schritt 5: Reprojektionsfehler messen
+# ──────────────────────────────────────────────
+
+def projiziere(X, R, t, K):
+    """Projiziert einen 3D-Punkt X durch Kamera (R, t, K) auf Pixelkoordinaten."""
+    X_cam = R @ X + t.ravel()
+    x_h = K @ X_cam
+    return x_h[:2] / x_h[2]
+
+def alle_residuen(landmarks, tracks, kam_R, kam_t, kp_pro_frame, K):
+    """Berechnet alle 2D-Reprojektionsresiduen."""
+    res = []
+    for X, tr in zip(landmarks, tracks):
+        for kfi, kp_idx in enumerate(tr):
+            if kp_idx is None:
+                continue
+            beob = np.array(kp_pro_frame[kfi][kp_idx].pt)
+            res.append(beob - projiziere(X, kam_R[kfi], kam_t[kfi], K))
+    return np.array(res)
+
+res_vorher = alle_residuen(landmarks, tracks_aktiv, kam_R, kam_t, alle_kp, K)
+norm_vorher = np.linalg.norm(res_vorher, axis=1)
+print(f"\nReprojektionsfehler VOR Bundle Adjustment:")
+print(f"  Mittelwert: {norm_vorher.mean():.3f} px")
+print(f"  Median:     {np.median(norm_vorher):.3f} px")
+print(f"  Maximum:    {norm_vorher.max():.3f} px")
+
+# ──────────────────────────────────────────────
+# Schritt 6: Bundle Adjustment
+# ──────────────────────────────────────────────
+# Parameter-Vektor: [rvec_1, tvec_1, rvec_2, tvec_2, ..., X_0, X_1, ...]
+# Kamera 0 ist fixiert.
+
+N_KAM = ANZAHL_KEYFRAMES
+N_LM  = len(landmarks)
+
+def packe(kam_R, kam_t, landmarks):
+    teile = []
+    for i in range(1, N_KAM):
+        rvec, _ = cv2.Rodrigues(kam_R[i])
+        teile.append(rvec.ravel())
+        teile.append(kam_t[i].ravel())
+    teile.append(landmarks.ravel())
+    return np.concatenate(teile)
+
+def entpacke(params):
+    Rs = [np.eye(3)]
+    ts = [np.zeros((3, 1))]
+    off = 0
+    for i in range(1, N_KAM):
+        rvec = params[off:off+3]; off += 3
+        tvec = params[off:off+3]; off += 3
+        R, _ = cv2.Rodrigues(rvec)
+        Rs.append(R)
+        ts.append(tvec.reshape(3, 1))
+    pts = params[off:].reshape(-1, 3)
+    return Rs, ts, pts
+
+# Beobachtungs-Tabelle (einmalig aufgebaut, dann in residuen_fn referenziert)
+beob_idx_kam = []
+beob_idx_pt  = []
+beob_xy      = []
+for j, tr in enumerate(tracks_aktiv):
+    for kfi, kp_idx in enumerate(tr):
+        if kp_idx is None:
+            continue
+        beob_idx_kam.append(kfi)
+        beob_idx_pt.append(j)
+        beob_xy.append(alle_kp[kfi][kp_idx].pt)
+beob_idx_kam = np.array(beob_idx_kam)
+beob_idx_pt  = np.array(beob_idx_pt)
+beob_xy      = np.array(beob_xy)
+
+def residuen_fn(params):
+    Rs, ts, pts = entpacke(params)
+    res = np.empty((len(beob_xy), 2))
+    for k in range(len(beob_xy)):
+        i = beob_idx_kam[k]
+        j = beob_idx_pt[k]
+        X_cam = Rs[i] @ pts[j] + ts[i].ravel()
+        x_h = K @ X_cam
+        proj = x_h[:2] / x_h[2]
+        res[k] = beob_xy[k] - proj
+    return res.ravel()
+
+x0 = packe(kam_R, kam_t, landmarks)
+print(f"\nBundle Adjustment:")
+print(f"  Parameter: {len(x0)}  ({N_KAM-1} Kameras × 6 + {N_LM} Punkte × 3)")
+print(f"  Residuen:  {len(beob_xy) * 2}")
+
+ergebnis = least_squares(
+    residuen_fn, x0,
+    method='trf', loss='linear',
+    max_nfev=200, xtol=1e-10, ftol=1e-10,
+    verbose=1
+)
+
+kam_R_opt, kam_t_opt, landmarks_opt = entpacke(ergebnis.x)
+landmarks_opt = np.array(landmarks_opt)
+
+# ──────────────────────────────────────────────
+# Ergebnisse
+# ──────────────────────────────────────────────
+res_nachher  = alle_residuen(landmarks_opt, tracks_aktiv, kam_R_opt, kam_t_opt, alle_kp, K)
+norm_nachher = np.linalg.norm(res_nachher, axis=1)
+
+print(f"\nReprojektionsfehler — Vergleich:")
+print(f"{'':25s}  vorher   nachher")
+print(f"  Mittlerer Fehler (px): {norm_vorher.mean():8.3f}  {norm_nachher.mean():8.3f}")
+print(f"  Median (px):           {np.median(norm_vorher):8.3f}  {np.median(norm_nachher):8.3f}")
+print(f"  Maximum (px):          {norm_vorher.max():8.3f}  {norm_nachher.max():8.3f}")
+
+print(f"\nKosten vorher:  {0.5 * np.sum(residuen_fn(x0)**2):.4f}")
+print(f"Kosten nachher: {ergebnis.cost:.4f}")
+
+print("\nKamera-Positionen nach BA (Welt-Koordinaten):")
+for i, (R, t) in enumerate(zip(kam_R_opt, kam_t_opt)):
+    pos = -R.T @ t
+    print(f"  Kamera {i}: ({pos[0,0]:+.3f}, {pos[1,0]:+.3f}, {pos[2,0]:+.3f})")
+
+```
 
 
 ### Loop-Closure-Detektion
-
 <details markdown="1">
 <summary><b>Vollständige Implementierung anzeigen (13_loop_closure.qmd)</b></summary>
 
@@ -1880,19 +2213,3 @@ print(f"\nGesamtverbesserung durch PGO: {improvement:.1f}% Drift-Reduktion")
 ```
 
 </details>
-
-
-## Visualisierung der vSLAM Pipeline
-
-TBD: Veranschaulichung der oben erklärten Theorie: etwa Visualisierung durch Slideshow in der jeder Slide
-einem Step des Workflows entspricht. Ideen:
-
-- Entstehung der Punktewolke interaktiv einbetten
-
-- Mapping und Optimierungsschritte bildlich darstellen
-
-- Mappen deines Gebäudes mittels OS vSLAM Anwendungen
-
-- Vergleich von günstigen/ ungünstigen Umgebungen für die vSLAM Technologie bezogen auf Texturen, Objekte, Gradienten im Bild
-
-
