@@ -15,14 +15,14 @@ bibliography: references.bib
      ===================================================================== -->
 <style>
   .vslam-slider {
-    position: relative;
     border: 1px solid #e3e3e3;
     border-radius: 12px;
-    padding: 1.25rem 1.5rem 3.5rem 1.5rem;
+    padding: 1.25rem 1.5rem 1rem 1.5rem;
     margin: 1.5rem 0 2rem 0;
     background: #fafafa;
     box-shadow: 0 1px 3px rgba(0,0,0,.04);
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
   .vslam-slider .vslam-slides { position: relative; min-height: 340px; }
   .vslam-slider .vslam-slide { display: none; animation: vslamFade .35s ease; }
@@ -40,10 +40,11 @@ bibliography: references.bib
   .vslam-slider .vslam-slide figure { margin: 0.5rem 0; }
   .vslam-slider .vslam-slide img { max-width: 100%; height: auto; }
   .vslam-slider .vslam-controls {
-    position: absolute;
-    bottom: .75rem; left: 1.5rem; right: 1.5rem;
     display: flex; align-items: center; justify-content: space-between;
     gap: 1rem;
+    margin-top: 1rem;
+    padding-top: .6rem;
+    border-top: 1px solid #e8ecef;
   }
   .vslam-slider .vslam-btn {
     background: #2c3e50; color: #fff; border: none;
@@ -123,7 +124,7 @@ Anwendungsbereiche im Detail:
 
 
 # Der vSLAM Workflow anhand eines Beispieldatensatzes
-### Eine uns nbekannte Umgebung...
+### Eine uns unbekannte Umgebung...
 <video width="100%" controls>
   <source src="images/recording_2020-12-22_12-04-35_5x.mp4" type="video/mp4">
   Dein Browser unterstützt keine Videos.
@@ -1216,6 +1217,8 @@ nur nach erfolgreichem Loop Closure ausgeführt.
 :::
 
 
+---
+
 # Code: Implementierungen
 
 ### Lokales Mapping und Lokale Optimierung
@@ -2134,5 +2137,3 @@ print(f"\nGesamtverbesserung durch PGO: {improvement:.1f}% Drift-Reduktion")
 ```
 
 </details>
-
-
