@@ -844,58 +844,236 @@ Die 40–500 Keypoints werden jetzt verwendet für:
 ::: {.vslam-slides}
 
 ::: {.vslam-slide}
-#### Konzept
-Visuelle Odometrie, da vSLAM Anwendungen stets mit Bewegtbildern arbeiten. Das Verfahren berechnet dabei die Bewegung (zurückgelegte Strecke im Raum)
-basierend auf den visuellen Informationen. Im Workflow werden also die erkannten Features (Punkte im Raum) des Ist-Zustandes, mit einer Serie von Bildern
-des Pre-Zustandes abgeglichen und daraus die Positionsänderung beschrieben.
+#### Konzept: Was ist Visuelle Odometrie?
+
+Die 40–500 Keypoints aus 1.1 sind nur **Punkte im Bild** — noch keine Bewegung. Visuelle Odometrie (VO) berechnet daraus, **wie sich die Kamera bewegt hat**.
+
+**Grundprinzip:**
+1. Frame $k$: Features erkannt an Position $(x, y)$
+2. Frame $k+1$: Dieselben Features an neuer Position $(x', y')$
+3. Aus der Verschiebung → Kamerabewegung schätzen
+
+**VO-Pipeline in 4 Schritten:**
+1. **Orientierung θ** — jeder Keypoint bekommt eine Richtung
+2. **Binärer Deskriptor** — Fingerabdruck aus 256 Bits
+3. **Matching** — Deskriptoren zwischen Frames vergleichen
+4. **Pose-Schätzung** — Rotation R und Translation t berechnen
+
+**Resultat:** Position und Orientierung der Kamera — Frame für Frame.
 :::
 
 ::: {.vslam-slide}
-#### Feature Matching (Frame-to-Frame)
-Ein solches Verfahren setzt einen ständigen Abgleich momentaner Bildpunkte mit vorherigen
-voraus (Frame to Frame) und nennt sich 'Feature Matching'. Nachdem die falsch gemappten Features identifiziert und abgestoßen wurden, findet die eigentliche Berechnung der
-Bewegung jedes einzelnen Features über die Zeit statt. Informationen über die Tiefe im aufgenommenen Bild spielt als Parameter eine wichtige Rolle und kann
-über Stereo-Kameras erreicht werden.
-:::
+#### Schritt 1: Orientierung θ — Rotationsinvarianz
 
-::: {.vslam-slide}
-#### Visualisierung – Kamerabewegung in Echtzeit
+Wenn die Kamera sich dreht, sieht dieselbe Ecke aus einem anderen Winkel aus. Ohne Orientierung würde das Matching fehlschlagen.
+
+**Lösung:** Jede Ecke bekommt eine Orientierung θ — die Richtung zum **Helligkeits-Schwerpunkt** im 31×31 Patch.
+
+**Berechnung über Momente:**
+$$m_{00} = \sum I, \quad m_{10} = \sum x \cdot I, \quad m_{01} = \sum y \cdot I$$
+$$\theta = \text{atan2}(m_{01},\, m_{10})$$
+
+**Konkretes Beispiel (3×3 Patch):**
+- Helle Pixel rechts-unten: $m_{10} = +160$, $m_{01} = +80$
+- $\theta = \text{atan2}(80, 160) \approx 27°$ → Pfeil zeigt zum Hellen
+
+Dieselbe Ecke ergibt **immer denselben θ** — egal wie die Kamera gedreht ist.
 
 ```{=html}
-<div style="text-align: center;">
-  <img src="images/vc_anlage_2.gif" width="60%">
-  <figcaption>Kamerabewegung mit visueller Odometrie in Echtzeit</figcaption>
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/feature_extraction/vo_orientierung_theta.png" style="width: 100%; max-height: 420px; object-fit: contain; border-radius: 6px;">
 </div>
 ```
 :::
 
 ::: {.vslam-slide}
-#### Mathematik – Essential Matrix & Pose Estimation
-Die Essential Matrix beschreibt die Epipolargeometrie zwischen zwei Frames:
+#### Schritt 2a: Binärer Deskriptor — Prinzip
 
-$$E = [t]_\times R$$
+Jede Ecke braucht einen **Fingerabdruck** — eine kompakte Beschreibung, die Matching ermöglicht.
 
-Mit:
+**BRIEF-Deskriptor: 256 Pixelpaar-Vergleiche:**
 
-- $t$ – Translationsvektor (Kamerabewegung)
-- $R$ – Rotationsmatrix (Drehung)
-- $[t]_\times$ – schiefsymmetrische Matrix von $t$
+Wähle 256 feste Pixelpaare $(A_i, B_i)$ im 31×31 Patch. Für jedes Paar:
+$$\text{Bit}_i = \begin{cases} 1 & \text{wenn } I(A_i) > I(B_i) \\ 0 & \text{sonst} \end{cases}$$
 
-Aus korrespondierenden Punkten $x, x'$ in den beiden Bildern gilt:
-$$x'^T \, E \, x = 0$$
+Ergebnis: ein **256-Bit-String** — der Fingerabdruck der Ecke.
 
-RANSAC entfernt vor der Schätzung von $E$ Outliers (falsche Matches).
+**Vorteile:**
+- Extrem schnell zu berechnen (nur Vergleiche, keine Mathematik)
+- Kompakt (256 Bit = 32 Bytes pro Feature)
+- Einfach zu vergleichen (Hamming-Distanz via XOR)
 
-*TBD: Triangulation für initiale 3D-Tiefe ergänzen.*
+```{=html}
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/feature_extraction/vo_deskriptor_prinzip.png" style="width: 100%; max-height: 480px; object-fit: contain; border-radius: 6px;">
+</div>
+```
 :::
 
 ::: {.vslam-slide}
-#### Exkurs – Visual Inertial Odometry (VIO)
-Alternative Ansätze zur Bewegungsbestimmung einer Kamera fusionieren visuelle
-Informationen mit Inertialsensoren (IMU): Beschleunigung und Drehrate ergänzen
-die optische Schätzung gerade bei schnellen Bewegungen oder texturarmen Szenen.
+#### Schritt 2b: Binärer Deskriptor — Rotationsinvarianz (steered BRIEF)
 
-*TBD: Sensor-Fusion / Kalman-Filter / Tightly-vs.-Loosely-Coupled.*
+**Problem:** Wenn die Kamera sich dreht, lesen die festen Paare andere Pixel ab → anderer Bitstring → kein Match.
+
+**Lösung — steered BRIEF:** Die Pixelpaare werden um den Winkel **θ gedreht**, bevor sie abgelesen werden.
+
+$$\begin{pmatrix} x' \\ y' \end{pmatrix} = \begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix} \begin{pmatrix} x \\ y \end{pmatrix}$$
+
+- **Ohne Rotation:** Paare in fester Position → verschiedene Bits bei gedrehter Kamera
+- **Mit Rotation um θ:** Paare drehen sich mit → **gleiche Bits** trotz Kameradrehung
+
+Dasselbe Feature ergibt **immer denselben 256-Bit-String** — rotationsinvariant!
+
+```{=html}
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/feature_extraction/vo_deskriptor_rotation.png" style="width: 100%; max-height: 440px; object-fit: contain; border-radius: 6px;">
+</div>
+```
+:::
+
+::: {.vslam-slide}
+#### Schritt 3a: Feature Matching — Hamming-Distanz
+
+**Ziel:** Finde dieselbe Ecke in zwei aufeinanderfolgenden Frames.
+
+**Methode — Hamming-Distanz:** Vergleiche zwei 256-Bit-Strings per XOR. Zähle unterschiedliche Bits.
+
+$$d_H(A, B) = \text{popcount}(A \oplus B)$$
+
+**Interpretation:**
+- **Wenige unterschiedliche Bits** (z.B. 8/256) → wahrscheinlich **dieselbe Ecke** ✓
+- **Viele unterschiedliche Bits** (z.B. 107/256) → **andere Ecke** ✗
+
+**Konkret:** Gleiche Ecke: Hamming = 8 (3,1% Unterschied). Andere Ecke: Hamming = 107 (41,8% Unterschied). Der Unterschied ist deutlich!
+
+```{=html}
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/feature_extraction/vo_hamming_distanz.png" style="width: 100%; max-height: 480px; object-fit: contain; border-radius: 6px;">
+</div>
+```
+:::
+
+::: {.vslam-slide}
+#### Schritt 3b: Feature Matching — Lowe Ratio-Test
+
+**Problem:** Ähnliche Stellen im Bild (z.B. gleiche Fenstermuster) passen mehrfach → falsche Matches.
+
+**Lösung — Lowe Ratio-Test:**
+1. Finde die **zwei besten Matches** für jede Ecke (Hamming-Distanz $d_1 < d_2$)
+2. Behalte nur wenn: $\dfrac{d_1}{d_2} < 0{,}75$
+
+**Bedeutung:** Der beste Match muss **deutlich besser** sein als der zweitbeste.
+
+**Konkrete Beispiele:**
+- $d_1 = 12$, $d_2 = 80$ → $12/80 = 0{,}15 < 0{,}75$ → **behalten** ✓ (eindeutig)
+- $d_1 = 40$, $d_2 = 45$ → $40/45 = 0{,}89 > 0{,}75$ → **verwerfen** ✗ (zu ähnlich)
+
+**Resultat:** Nur grüne Matches übrig — zuverlässige, eindeutige Korrespondenzen.
+
+```{=html}
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/feature_extraction/vo_feature_matching.png" style="width: 100%; max-height: 300px; object-fit: contain; border-radius: 6px;">
+</div>
+<p style="text-align:center; color:#aaa; font-size:0.85em; margin-top:6px;">377 gute Matches zwischen zwei Frames — grüne Linien verbinden dieselbe Ecke</p>
+```
+:::
+
+::: {.vslam-slide}
+#### Schritt 4a: Pose-Schätzung — Essential Matrix
+
+Aus den gematchten Punktpaaren $(x, x')$ berechnen wir **Rotation R** und **Translation t** der Kamera.
+
+**Epipolar-Bedingung:** Für jedes korrekte Punktpaar gilt:
+$$x'^T \cdot E \cdot x = 0$$
+
+**Essential Matrix E** kodiert Rotation und Translation:
+$$E = [t]_\times \cdot R$$
+
+Wo $[t]_\times$ die schiefsymmetrische Matrix von $t$ ist.
+
+**Pipeline:**
+1. `findEssentialMat` mit **RANSAC** — berechnet E aus mind. 5 Paaren, markiert Outlier
+2. `recoverPose` zerlegt E per **SVD** in R und t
+3. **Einschränkung:** t hat nur Richtung — bei Mono-Kamera bleibt die echte Strecke unbekannt
+
+RANSAC = Random Sample Consensus: probiert zufällige Teilmengen, wählt das Modell mit den meisten Inliern.
+:::
+
+::: {.vslam-slide}
+#### Schritt 4b: Pose-Schätzung — Inlier & Outlier
+
+RANSAC unterscheidet:
+- **Inlier:** Punkte, die zur geschätzten Bewegung passen ($x'^T E x \approx 0$)
+- **Outlier:** Punkte, die nicht passen → verworfen
+
+**Konkretes Ergebnis aus echten Frames:**
+
+```{=html}
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/feature_extraction/vo_pose_inlier_outlier.png" style="width: 100%; max-height: 480px; object-fit: contain; border-radius: 6px;">
+</div>
+```
+
+- **Grün** = Inlier (44 Punkte) — passen zur Bewegung ✓
+- **Rot** = Outlier (14 Punkte) — verworfen ✗
+- Translation zeigt nach **vorne** (Kamera fährt vorwärts)
+- Rotation = fast reines **Gieren** (leichte Rechtsdrehung)
+:::
+
+::: {.vslam-slide}
+#### Schritt 5: Trajektorie — Akkumulation der Bewegung
+
+Jedes Frame-Paar liefert nur die **relative** Bewegung ($R$, $t$). Die **Trajektorie** entsteht durch Aufsummieren.
+
+**Algorithmus:**
+$$P_{\text{neu}} = P_{\text{alt}} + R_{\text{global}} \cdot t$$
+$$R_{\text{global}} = R_{\text{global}} \cdot R$$
+
+- $R_{\text{global}}$ dreht das lokale „vorne" in die **Weltrichtung**
+- Start: $P_0 = (0,0,0)$, $R_{\text{global}} = I$
+
+**Konkretes 2D-Beispiel (t immer (1,0)):**
+
+| Schritt | θ | $R_{\text{global}} \cdot t$ | Neue Position |
+|:---:|:---:|:---:|:---:|
+| 1 | 0° | $(+1, 0)$ | $(1, 0)$ |
+| 2 | 90° | $(0, +1)$ | $(1, 1)$ |
+| 3 | 180° | $(-1, 0)$ | $(0, 1)$ |
+
+Lokales „vorne" bleibt gleich — aber die Weltrichtung dreht sich!
+
+```{=html}
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/feature_extraction/vo_trajektorie.png" style="width: 100%; max-height: 440px; object-fit: contain; border-radius: 6px;">
+</div>
+```
+:::
+
+::: {.vslam-slide}
+#### Zusammenfassung 1.2 & Ausblick
+
+**1.2 Visuelle Odometrie — vollständige Pipeline:**
+
+1. **θ (Orientierung):** Helligkeits-Schwerpunkt → rotationsinvariante Richtung
+2. **Deskriptor:** 256 Pixelpaar-Vergleiche → Bit-String (steered BRIEF)
+3. **Matching:** Hamming-Distanz + Ratio-Test → zuverlässige Korrespondenzen
+4. **Essential Matrix E:** Epipolar-Bedingung + RANSAC → Inlier filtern
+5. **Pose (R, t):** SVD-Zerlegung → Rotation und Translation
+6. **Trajektorie:** $P = P + R_{\text{global}} \cdot t$ → Kameraweg
+
+**Verbleibende Probleme:**
+- **Drift:** Kleine Fehler summieren sich → Trajektorie weicht ab
+- **Nur 2D:** Punkte haben noch keine echte Tiefe (3D-Koordinaten fehlen)
+- **Skalierung:** Mono-Kamera kennt keine absoluten Abstände
+
+→ Diese Probleme lösen **2.1 Lokales Mapping** (3D-Rekonstruktion) und **3.1/3.2 Loop Closure** (Drift-Korrektur).
+
+```{=html}
+<div style="text-align: center; margin: 16px 0;">
+  <img src="images/vc_anlage_2.gif" width="60%" style="border-radius: 6px;">
+  <p style="color:#aaa; font-size:0.85em; margin-top:6px;">Kamerabewegung mit visueller Odometrie in Echtzeit</p>
+</div>
+```
 :::
 
 :::
@@ -903,7 +1081,7 @@ die optische Schätzung gerade bei schnellen Bewegungen oder texturarmen Szenen.
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 5</span>
+<span class="vslam-counter">Slide 1 / 10</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
