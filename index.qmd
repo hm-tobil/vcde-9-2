@@ -1274,59 +1274,14 @@ Das BA reduziert den mittleren Reprojektionsfehler auf nahezu null und richtet d
 ::: {.vslam-slides}
 
 ::: {.vslam-slide}
-#### Das Drift-Problem
+#### Das Drift-Problem & Loop-Closure-Prinzip
 Visuelle Odometrie (1.2) schätzt die Kamera-Bewegung Frame für Frame.
 Jede Schätzung hat einen kleinen Fehler — doch **Fehler akkumulieren sich:**
-Der geschätzte Pfad driftet mit zunehmender Distanz immer weiter vom
-wahren Pfad ab.
+auf unserem ~350-KeyFrame-Datensatz beträgt der Drift am Ende **mehrere Meter.**
 
-```{=html}
-<div style="display: flex; gap: 24px; justify-content: center; align-items: center; margin: 12px 0;">
-  <div style="text-align: center; padding: 12px; background: #1a2634; border-radius: 8px; border: 1px solid #2a3a4a; width: 170px;">
-    <div style="font-size: 0.85em; color: #2ecc71; margin-bottom: 6px;">Lokal (10 Frames)</div>
-    <div style="font-family: monospace; font-size: 0.78em; line-height: 1.3;">
-      <span style="color:#3498db;">●→●→●</span><br>
-      <span style="color:#2ecc71;">●→●→●</span>
-    </div>
-    <div style="font-size: 0.7em; color: #888; margin-top: 4px;">GT & VO fast deckungsgleich</div>
-  </div>
-  <div style="font-size: 1.5em; color: #555;">→</div>
-  <div style="text-align: center; padding: 12px; background: #1a2634; border-radius: 8px; border: 1px solid #2a3a4a; width: 170px;">
-    <div style="font-size: 0.85em; color: #e74c3c; margin-bottom: 6px;">Global (350 Frames)</div>
-    <div style="font-family: monospace; font-size: 0.78em; line-height: 1.3;">
-      <span style="color:#e74c3c;">⤡⤡⤡⤡</span><br>
-      <span style="color:#2ecc71;">━━━━</span>
-    </div>
-    <div style="font-size: 0.7em; color: #888; margin-top: 4px;">Mehrere Meter Abweichung</div>
-  </div>
-</div>
-```
-
-Auf unserem ~350-KeyFrame-Datensatz beträgt der Drift am Ende **mehrere Meter.**
-**Loop Closure** löst das Problem: Es erkennt, wann die Kamera an einen bereits
-besuchten Ort zurückkehrt, und liefert Constraints zur Korrektur des Drifts.
-:::
-
-::: {.vslam-slide}
-#### Das Loop-Closure-Prinzip
-Zwei KeyFrames, die **nah im Raum** aber **weit in der Zeit** auseinanderliegen,
-zeigen wahrscheinlich denselben Ort — ein **Loop**.
-
-```{=html}
-<div style="text-align: center; margin: 10px 0;">
-  <div style="display: inline-block; text-align: center; padding: 14px 20px;
-       background: #1a2634; border-radius: 8px; border: 1px solid #2a3a4a;">
-    <div style="font-family: monospace; font-size: 0.85em; color: #3498db;">
-      KF₁ → KF₂ → ... → KF₆₂ → ... → KF₁₀₆ → ... → KF₃₄₉
-    </div>
-    <div style="margin-top: 6px;">
-      <span style="color: #e74c3c; font-weight: bold;">━━━━ LOOP ━━━━</span>
-      <span style="font-size: 0.75em; color: #888; display: block;">
-        KF₆₂ und KF₁₀₆ sind am selben Ort (1.95 m)</span>
-    </div>
-  </div>
-</div>
-```
+**Loop Closure** erkennt, wann die Kamera an einen bereits besuchten Ort
+zurückkehrt: Zwei KeyFrames, die **nah im Raum** aber **weit in der Zeit**
+auseinanderliegen, zeigen denselben Ort — ein **Loop**.
 
 Die vier Schritte der Loop-Closure-Detektion:
 
@@ -1348,24 +1303,14 @@ die Constraints für die globale Optimierung in 3.2.
 
 ```{=html}
 <div style="text-align: center; margin: 8px 0;">
-  <div style="display: inline-block; padding: 10px 16px; background: #1a2634;
-       border-radius: 6px; border: 1px solid #2a3a4a; font-size: 0.9em;">
-    <div style="color: #ccc; margin-bottom: 4px;">
-      Distanzmatrix log(1 + D) — diagonal = 0, hell = nah</div>
-    <div style="font-family: monospace; font-size: 0.75em; color: #888; line-height: 1.4;">
-      KF 0  ████████▇▅▃▂▁▁▁<br>
-      KF 50 ████▇▅▃▂▁▁▁▁▁▁<br>
-      KF100 ▁▁▁▁▂▅▇████████ ← Loop-Kandidat!<br>
-      KF150 ▁▁▁▁▁▁▂▅▇███████<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0&nbsp;&nbsp;&nbsp;50&nbsp;&nbsp;100&nbsp;150
-    </div>
-  </div>
+  <img src="images/loop_closure/distmatrix.png" style="max-width: 100%; border-radius: 6px;">
 </div>
 ```
 
-Aus ~349 Frames → hunderte rohe Paare → **Non-Maximum Suppression** reduziert
-auf ~15–20 Kandidaten (einer pro zeitlichem Cluster). Der Filter ist bewusst
-liberal — lieber zu viele als echte Loops zu verpassen.
+Aus ~349 Frames → **236 rohe Paare** → **Non-Maximum Suppression** reduziert
+auf **84 Kandidaten** (einer pro zeitlichem Cluster). Der Filter ist bewusst
+liberal — lieber zu viele als echte Loops zu verpassen; das teure BoW- und
+Geometrie-Scoring trennt anschließend die echten Loops heraus.
 :::
 
 ::: {.vslam-slide}
@@ -1384,16 +1329,12 @@ $$
 
 ```{=html}
 <div style="text-align: center; margin: 8px 0;">
-  <div style="display: inline-block; padding: 8px 14px; background: #1a2634;
-       border-radius: 6px; border: 1px solid #2a3a4a; font-size: 0.9em;">
-    <div style="color: #3498db;">KF 10 ≈ KF 60 → χ² = 0.12 (ähnlich)</div>
-    <div style="color: #e74c3c;">KF 10 ≈ KF 200 → χ² = 0.87 (verschieden)</div>
-  </div>
+  <img src="images/loop_closure/bow_similarity.png" style="max-width: 100%; border-radius: 6px;">
 </div>
 ```
 
-Niedrige $\chi^2$ = hohe visuelle Ähnlichkeit. Visuell ähnliche,
-räumlich nahe Frames sind Loop-Kandidaten.
+Die hellen Diagonalstreifen zeigen Frames mit hoher visueller Ähnlichkeit —
+genau dort liegen potenzielle Loops.
 :::
 
 ::: {.vslam-slide}
@@ -1407,23 +1348,14 @@ $$\text{Score}_{ij} = \text{BoW-Ähnlichkeit}_{ij} \;\times\; \frac{1}{D_{ij}^{\
 
 ```{=html}
 <div style="text-align: center; margin: 8px 0;">
-  <div style="display: inline-block; padding: 10px 16px; background: #1a2634;
-       border-radius: 6px; border: 1px solid #2a3a4a; font-size: 0.9em;">
-    <div style="color: #ccc; margin-bottom: 3px;">Top-8 Loop-Kandidaten</div>
-    <div style="font-family: monospace; font-size: 0.75em; line-height: 1.3;">
-      <span style="color:#2ecc71;">#1 KF62↔KF106  Score=580</span><br>
-      <span style="color:#f39c12;">#2 KF56↔KF100  Score=412</span><br>
-      <span style="color:#e74c3c;">#3 KF60↔KF104  Score=253</span><br>
-      <span style="color:#e74c3c;">#4 KF64↔KF108  Score=198</span><br>
-      <span style="color:#888;">#5–8: Absteigend…</span>
-    </div>
-  </div>
+  <img src="images/loop_closure/trajectory_loops.png" style="max-width: 100%; border-radius: 6px;">
 </div>
 ```
 
-Warum beide Signale? BoW allein kann falsch-positive liefern — ähnliche Struktur
-an anderem Ort. Die räumliche Nähe eliminiert diese. Ein echter Loop muss
-**beide** Bedingungen erfüllen.
+Die roten Linien zeigen die Top-8 Kandidaten — alle liegen an Stellen,
+an denen die Kamera dieselbe Parkhausrunde ein zweites Mal durchfährt.
+BoW allein kann falsch-positive liefern (ähnliche Struktur an anderem Ort);
+die räumliche Nähe eliminiert diese.
 :::
 
 ::: {.vslam-slide}
@@ -1439,83 +1371,43 @@ Wie viele 3D-Punkte beider Frames liegen in derselben Weltregion?
 
 | Rank | Paar | Ratio | Inliers | Status |
 |------|------|-------|---------|--------|
-| #1 | KF62↔KF106 | **69%** | 220 | ✓ verifiziert |
-| #2 | KF56↔KF100 | 55% | 178 | ✓ verifiziert |
-| #3–8 | … | < 10% | — | ✗ verworfen |
+| #1 | KF255↔KF294 | 40% | 178 | ✓ verifiziert |
+| #2 | KF244↔KF284 | 51% | 267 | ✓ verifiziert |
+| #8 | KF166↔KF198 | **53%** | 278 | ✓ verifiziert |
 
-Nur 2 von 8 Kandidaten bestehen die geometrische Prüfung. Der strenge Filter
-verhindert falsche Loop-Kanten, die den Pose-Graphen verzerren würden.
+Alle **8 von 8** Kandidaten bestehen die geometrische Prüfung (Ratios 28–53 %).
+Das zeigt: Die Vorfilterung aus räumlicher Nähe **und** BoW-Ähnlichkeit ist bereits
+so selektiv, dass kaum Falsch-Positive durchkommen — die geometrische Verifikation
+**bestätigt** die Loops und ist die letzte Absicherung gegen verzerrende Kanten.
 :::
 
 ::: {.vslam-slide}
-#### Konkretes Beispiel: KF62 ↔ KF106
-Der stärkste verifizierte Loop: **219 Original-Frames (40.8 s)** zwischen den
-Aufnahmen, die Kamera kehrt auf **1.95 m** genau an dieselbe Position zurück.
+#### Ergebnis: KF255 ↔ KF294 → Loop-Constraint
+Der am höchsten bewertete Loop (#1): **195 Original-Frames (21.6 s)** zwischen den
+Aufnahmen, die Kamera kehrt auf **0.06 m** genau an dieselbe Position zurück.
 
 ```{=html}
 <div style="display: flex; gap: 16px; justify-content: center; align-items: start; margin: 8px 0;">
   <div style="text-align: center;">
-    <img src="images/loop_frames/frame_kf62.png" style="width: 100%; max-width: 350px;">
-    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 62 — frühere Aufnahme</div>
+    <img src="images/loop_frames/frame_kf255.png" style="width: 100%; max-width: 350px;">
+    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 255 — frühere Aufnahme</div>
   </div>
   <div style="text-align: center;">
-    <img src="images/loop_frames/frame_kf106.png" style="width: 100%; max-width: 350px;">
-    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 106 — spätere Aufnahme</div>
+    <img src="images/loop_frames/frame_kf294.png" style="width: 100%; max-width: 350px;">
+    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 294 — spätere Aufnahme</div>
   </div>
 </div>
 ```
 
 | Metrik | Wert |
 |--------|------|
-| Räumliche Distanz | 1.95 m |
-| 3D-Überlappung | 69% (220 Punkte) |
-| Zeitlicher Abstand | 219 Frames × 0.187 s = 40.8 s |
+| Räumliche Distanz | 0.06 m |
+| 3D-Überlappung | 40% (178 Punkte) |
+| Zeitlicher Abstand | 195 Frames × 0.111 s = 21.6 s |
 
-Vergleiche die Strukturen in beiden Bildern — dieselbe Umgebung aus leicht
-verschobener Perspektive, rein visuell wiedererkannt, ohne GPS.
-:::
-
-::: {.vslam-slide}
-#### Von Loops zu Constraints
-Jedes verifizierte Loop-Paar wird eine **Loop-Closure-Kante** im Pose-Graphen:
-
-```{=html}
-<div style="display: flex; gap: 16px; justify-content: center; align-items: center; margin: 10px 0;">
-  <div style="text-align: center; padding: 12px 16px; background: #1a2634;
-       border-radius: 6px; border: 1px solid #2a3a4a; width: 220px;">
-    <div style="color: #3498db; font-weight: bold;">Odometrie-Kanten</div>
-    <div style="font-family: monospace; font-size: 0.78em; margin-top: 4px;">
-      <span style="color:#3498db;">KFᵢ → KFᵢ₊₁</span><br>
-      <span style="color:#3498db;">KFᵢ₊₁ → KFᵢ₊₂</span><br>
-      <span style="color:#3498db;">KFᵢ₊₂ → KFᵢ₊₃</span>
-    </div>
-    <div style="font-size: 0.75em; color: #888; margin-top: 4px;">
-      Frame-zu-Frame<br>~349 Kanten</div>
-  </div>
-  <div style="font-size: 1.2em; color: #555;">+</div>
-  <div style="text-align: center; padding: 12px 16px; background: #1a2634;
-       border-radius: 6px; border: 2px solid #e74c3c; width: 220px;">
-    <div style="color: #e74c3c; font-weight: bold;">Loop-Kanten ⭐</div>
-    <div style="font-family: monospace; font-size: 0.78em; margin-top: 4px;">
-      <span style="color:#e74c3c;">KF₆₂ ≡ KF₁₀₆</span><br>
-      <span style="color:#e74c3c;">KF₅₆ ≡ KF₁₀₀</span>
-    </div>
-    <div style="font-size: 0.75em; color: #888; margin-top: 4px;">
-      „Selber Ort"<br>2 verifizierte Kanten</div>
-  </div>
-  <div style="font-size: 1.2em; color: #555;">=</div>
-  <div style="text-align: center; padding: 12px 16px; background: #1a2634;
-       border-radius: 6px; border: 1px solid #2ecc71; width: 200px;">
-    <div style="color: #2ecc71; font-weight: bold;">Pose-Graph</div>
-    <div style="font-size: 0.78em; color: #ccc; margin-top: 4px;">
-      Überbestimmtes System<br>→ Optimierung in 3.2</div>
-  </div>
-</div>
-```
-
-**Datenaustausch:** Die Loop-Paare werden als `loop_constraints.json` gespeichert —
-mit Index-Paaren, Konfidenz (Inlier-Ratio) und Trajektorie. Die Pose-Graph-
-Optimierung in 3.2 liest diese Datei ein und korrigiert den globalen Drift.
+Insgesamt bestehen **8 Loop-Paare** die Verifikation. Sie werden als
+`loop_constraints.json` gespeichert und fließen als Loop-Closure-Kanten
+in die Pose-Graph-Optimierung (3.2) ein.
 :::
 
 :::
@@ -1523,7 +1415,7 @@ Optimierung in 3.2 liest diese Datei ein und korrigiert den globalen Drift.
 ::: {.vslam-controls}
 <button class="vslam-btn vslam-prev">← Zurück</button>
 <div class="vslam-dots"></div>
-<span class="vslam-counter">Slide 1 / 8</span>
+<span class="vslam-counter">Slide 1 / 6</span>
 <button class="vslam-btn vslam-next">Weiter →</button>
 :::
 
