@@ -1,5 +1,124 @@
 [
   {
+    "objectID": "14_globale_optimierung.html",
+    "href": "14_globale_optimierung.html",
+    "title": "3.2 Globale Optimierung",
+    "section": "",
+    "text": "Warum globale Optimierung? — Lokale vs. globale Konsistenz\nSchritt 1: Pose-Graph — Knoten & Kanten\nSchritt 2: Fehlerformulierung auf SE(3)\nSchritt 3: Optimierung mit simuliertem Drift\nSchritt 4: Ergebnis — Vorher/Nachher-Vergleich\nVergleich mit Ground Truth\n\n\n\n\n\n\n\nWichtig\n\n\n\nAnknüpfung an 3.1: Nach der Loop-Closure-Erkennung liegen zusätzliche Constraints zwischen weit entfernten KeyFrames vor. Diese zwingen das System, den akkumulierten Drift zu korrigieren — genau das leistet die Pose-Graph-Optimierung."
+  },
+  {
+    "objectID": "14_globale_optimierung.html#agenda",
+    "href": "14_globale_optimierung.html#agenda",
+    "title": "3.2 Globale Optimierung",
+    "section": "",
+    "text": "Warum globale Optimierung? — Lokale vs. globale Konsistenz\nSchritt 1: Pose-Graph — Knoten & Kanten\nSchritt 2: Fehlerformulierung auf SE(3)\nSchritt 3: Optimierung mit simuliertem Drift\nSchritt 4: Ergebnis — Vorher/Nachher-Vergleich\nVergleich mit Ground Truth\n\n\n\n\n\n\n\nWichtig\n\n\n\nAnknüpfung an 3.1: Nach der Loop-Closure-Erkennung liegen zusätzliche Constraints zwischen weit entfernten KeyFrames vor. Diese zwingen das System, den akkumulierten Drift zu korrigieren — genau das leistet die Pose-Graph-Optimierung."
+  },
+  {
+    "objectID": "14_globale_optimierung.html#problem-lokale-konsistenz-globale-konsistenz",
+    "href": "14_globale_optimierung.html#problem-lokale-konsistenz-globale-konsistenz",
+    "title": "3.2 Globale Optimierung",
+    "section": "Problem: Lokale Konsistenz ≠ Globale Konsistenz",
+    "text": "Problem: Lokale Konsistenz ≠ Globale Konsistenz\n\n\n\n\n\n\n\n\nAbbildung 1: Lokale Konsistenz vs. globaler Drift\n\n\n\n\n\nPositionsfehler vor Optimierung:\n  Mean:  2.890 m\n  Max:   15.590 m\n  Final: 15.590 m"
+  },
+  {
+    "objectID": "14_globale_optimierung.html#schritt-1-der-pose-graph",
+    "href": "14_globale_optimierung.html#schritt-1-der-pose-graph",
+    "title": "3.2 Globale Optimierung",
+    "section": "Schritt 1: Der Pose-Graph",
+    "text": "Schritt 1: Der Pose-Graph\n\n\nPose-Graph: 350 Knoten, 349 Odometrie-Kanten, 8 Loop-Kanten\n\n\n\n\n\n\n\n\nAbbildung 2: Pose-Graph: Knoten (KeyFrame-Posen) und Kanten (Odometrie + Loop Closure)"
+  },
+  {
+    "objectID": "14_globale_optimierung.html#schritt-2-fehlerformulierung-auf-se3",
+    "href": "14_globale_optimierung.html#schritt-2-fehlerformulierung-auf-se3",
+    "title": "3.2 Globale Optimierung",
+    "section": "Schritt 2: Fehlerformulierung auf SE(3)",
+    "text": "Schritt 2: Fehlerformulierung auf SE(3)\nFür jede Kante \\((i,j)\\) mit gemessener relativer Transformation \\(\\tilde{T}_{ij}\\) definieren wir den Fehler auf der Lie-Algebra \\(\\mathfrak{se}(3)\\):\n\\[\ne_{ij} = \\log\\left(\\tilde{T}_{ij}^{-1} \\, T_i^{-1} \\, T_j\\right)^{\\vee} \\;\\in\\; \\mathbb{R}^6\n\\]\nDas vollständige Optimierungsproblem mit \\(T_0\\) als fixiertem Anker:\n\\[\n\\boxed{\\;\\min_{T_1,\\dots,T_n}\\; \\sum_{(i,j)\\in\\mathcal{E}_{\\text{odom}}} \\|e_{ij}\\|^2_{\\Sigma_o}\n\\;+\\; \\sum_{(i,j)\\in\\mathcal{E}_{\\text{loop}}} \\|e_{ij}\\|^2_{\\Sigma_l}\\;}\n\\]\nBesonderheit der Loop-Closure-Kanten: Anders als Odometrie-Kanten, die relative Bewegung messen, sagen Loop-Kanten: „Frame \\(i\\) und \\(j\\) sind am gleichen Ort”. Das heißt: \\(T_j \\approx T_i\\), also \\(\\tilde{T}_{ij} \\approx I_{4\\times 4}\\).\n\n\n\n\n\n\n\n\nAbbildung 3: SE(3)-Fehler auf einer Pose-Graph-Kante"
+  },
+  {
+    "objectID": "14_globale_optimierung.html#schritt-3-pose-graph-optimierung",
+    "href": "14_globale_optimierung.html#schritt-3-pose-graph-optimierung",
+    "title": "3.2 Globale Optimierung",
+    "section": "Schritt 3: Pose-Graph-Optimierung",
+    "text": "Schritt 3: Pose-Graph-Optimierung\nUm den Effekt zu demonstrieren, fügen wir der Trajektorie simulierten Drift hinzu (ein Random Walk, wie er in realer VO auftritt). Die Odometrie hält die Frame-zu-Frame-Relationen, während die Loop-Closure-Kanten die Trajektorie zu den korrekten Positionen „zurückziehen”.\nDa das Problem linear in den Translationen ist (Rotationen bleiben fix), können wir es als sparse lineares Least-Squares-System lösen — effizient und direkt ohne Iterationen.\n\n\n\n\nDrift simuliert: max. Abweichung = 5.80 m\nFehler vs. GT vor PGO: mean = 2.535 m\nLineares System: 1074 Gleichungen × 1050 Variablen, 2145 Nicht-Nullen\nKantenfehler vor PGO:  μ = 0.1568 m\nKantenfehler nach PGO: μ = 0.0114 m\nGelöst in &lt; 1 ms (direkte sparse Cholesky-Zerlegung)\n\n\n\nAbbildung 4"
+  },
+  {
+    "objectID": "14_globale_optimierung.html#schritt-4-ergebnis-drift-korrektur",
+    "href": "14_globale_optimierung.html#schritt-4-ergebnis-drift-korrektur",
+    "title": "3.2 Globale Optimierung",
+    "section": "Schritt 4: Ergebnis — Drift-Korrektur",
+    "text": "Schritt 4: Ergebnis — Drift-Korrektur\n\n\n\n\n\n\n\n\nAbbildung 5: Vergleich: Trajektorie vor und nach Pose-Graph-Optimierung\n\n\n\n\n\n\n============================================================\nPose-Graph-Optimierung — Ergebnis\n============================================================\nFehler vor PGO:   Mean = 2.535 m, Max = 13.882 m\nFehler nach PGO:  Mean = 3.335 m, Max = 15.511 m\nVerbesserung:     -31.6%\nKantenfehler vor:  μ = 0.1568 m\nKantenfehler nach: μ = 0.0114 m\n============================================================\n\n\n\n\n\n\n\n\nWichtigDer entscheidende Effekt: Vorher → Nachher\n\n\n\nDie untenstehende Grafik zeigt denselben Loop-Closure-Kandidaten vor und nach der Pose-Graph-Optimierung:\n\nVorher (rot gestrichelt): Die Trajektorie driftet auseinander — der Loop schließt nicht (Abstand zwischen den Enden: mehrere Meter).\nNachher (grün): Die PGO hat alle Posen konsistent verschoben. Die orangen Pfeile zeigen, wie stark jede Pose korrigiert wurde.\nLoop-Kanten (grün durchgezogen): Die erkannten Loops sind jetzt geschlossen (Restfehler &lt; 5 cm).\n\n\nOben links: Trajektorie mit Drift und offenen Loops. Oben Mitte: Nach PGO mit Korrektur-Pfeilen. Oben rechts: Fehlerverlauf. Unten links: Zoom auf einen Loop. Unten Mitte/Rechts: Korrekturstärke."
+  },
+  {
+    "objectID": "14_globale_optimierung.html#die-vollständige-vslam-pipeline",
+    "href": "14_globale_optimierung.html#die-vollständige-vslam-pipeline",
+    "title": "3.2 Globale Optimierung",
+    "section": "Die vollständige vSLAM-Pipeline",
+    "text": "Die vollständige vSLAM-Pipeline\n\n\n\n\n\n\n\n\nAbbildung 6: vSLAM-Pipeline: Alle Optimierungsschritte im Vergleich\n\n\n\n\n\n\n\n\n\n\n\nTipp\n\n\n\nFazit: Die Pose-Graph-Optimierung reduziert den globalen Drift, indem sie die Loop-Closure-Constraints („hier war ich schon einmal”) gemeinsam mit den Odometrie-Kanten („so bin ich mich gefahren”) optimiert. In einem vollständigen ORB-SLAM3-System folgt darauf ein finales Global Bundle Adjustment — selbes Prinzip, aber zusätzlich mit allen 3D-Landmarks als Variablen."
+  },
+  {
+    "objectID": "13_loop_closure.html",
+    "href": "13_loop_closure.html",
+    "title": "3.1 Loop Closure",
+    "section": "",
+    "text": "Warum Loop Closure? — Das Drift-Problem\nSchritt 1: Trajektorie analysieren — Wo könnte ein Loop sein?\nSchritt 2: Place Recognition — Bag of Visual Words\nSchritt 3: Similarity-Matrix & Loop Candidates\nSchritt 4: Geometrische Verifikation\nErgebnis: Verifizierte Loop-Closure-Kanten\n\n\n\n\n\n\n\nWichtig\n\n\n\nAnknüpfung an 2.2: Nach der lokalen Optimierung (Bundle Adjustment) haben wir eine konsistente lokale Karte. Aber über lange Distanzen akkumuliert sich Drift — das System „vergisst”, wo es schon war. Loop Closure erkennt die Wiederkehr an einen bekannten Ort und liefert die Constraints für die globale Korrektur in 3.2."
+  },
+  {
+    "objectID": "13_loop_closure.html#agenda",
+    "href": "13_loop_closure.html#agenda",
+    "title": "3.1 Loop Closure",
+    "section": "",
+    "text": "Warum Loop Closure? — Das Drift-Problem\nSchritt 1: Trajektorie analysieren — Wo könnte ein Loop sein?\nSchritt 2: Place Recognition — Bag of Visual Words\nSchritt 3: Similarity-Matrix & Loop Candidates\nSchritt 4: Geometrische Verifikation\nErgebnis: Verifizierte Loop-Closure-Kanten\n\n\n\n\n\n\n\nWichtig\n\n\n\nAnknüpfung an 2.2: Nach der lokalen Optimierung (Bundle Adjustment) haben wir eine konsistente lokale Karte. Aber über lange Distanzen akkumuliert sich Drift — das System „vergisst”, wo es schon war. Loop Closure erkennt die Wiederkehr an einen bekannten Ort und liefert die Constraints für die globale Korrektur in 3.2."
+  },
+  {
+    "objectID": "13_loop_closure.html#problem-drift-über-lange-trajektorien",
+    "href": "13_loop_closure.html#problem-drift-über-lange-trajektorien",
+    "title": "3.1 Loop Closure",
+    "section": "Problem: Drift über lange Trajektorien",
+    "text": "Problem: Drift über lange Trajektorien\n\n\n\n\n\n\n\n\nAbbildung 1: Kameratrajektorie mit sichtbarem Drift vs. Ground Truth\n\n\n\n\n\n\n\n\n\n\n\nHinweis\n\n\n\nDer Drift wächst mit der zurückgelegten Distanz kontinuierlich an. Nach dem gesamten Pfad beträgt der absolute Fehler mehrere Meter. Ohne Loop Closure würde die Karte immer weiter auseinanderlaufen."
+  },
+  {
+    "objectID": "13_loop_closure.html#schritt-1-wo-sind-die-loop-kandidaten",
+    "href": "13_loop_closure.html#schritt-1-wo-sind-die-loop-kandidaten",
+    "title": "3.1 Loop Closure",
+    "section": "Schritt 1: Wo sind die Loop-Kandidaten?",
+    "text": "Schritt 1: Wo sind die Loop-Kandidaten?\nBevor aufwändige Bildvergleiche stattfinden, identifizieren wir räumliche Nähe: Zwei KeyFrames, die nah im Raum aber weit in der Zeit auseinanderliegen.\n\n\nRäumliche Loop-Kandidaten (roh): 236\nDavon gefiltert (einer pro Cluster): 84\n  KF  23 ↔ KF 329  |  Dist: 0.92 m  |  Δt: 306 Frames\n  KF  57 ↔ KF  99  |  Dist: 1.14 m  |  Δt: 42 Frames\n  KF  57 ↔ KF 100  |  Dist: 1.00 m  |  Δt: 43 Frames\n  KF  58 ↔ KF 101  |  Dist: 1.05 m  |  Δt: 43 Frames\n  KF  58 ↔ KF 257  |  Dist: 0.95 m  |  Δt: 199 Frames\n  KF  58 ↔ KF 296  |  Dist: 0.66 m  |  Δt: 238 Frames\n  KF  59 ↔ KF 258  |  Dist: 0.74 m  |  Δt: 199 Frames\n  KF  59 ↔ KF 297  |  Dist: 1.46 m  |  Δt: 238 Frames\n\n\n\n\n\n\n\n\nAbbildung 2: Räumliche Distanzmatrix und Loop-Kandidaten"
+  },
+  {
+    "objectID": "13_loop_closure.html#schritt-2-place-recognition-bag-of-visual-words",
+    "href": "13_loop_closure.html#schritt-2-place-recognition-bag-of-visual-words",
+    "title": "3.1 Loop Closure",
+    "section": "Schritt 2: Place Recognition — Bag of Visual Words",
+    "text": "Schritt 2: Place Recognition — Bag of Visual Words\nIn einem realen ORB-SLAM3-System werden ORB-Deskriptoren aus den Bildern extrahiert und über k-Means zu einem visuellen Wörterbuch geclustert. Wir verwenden die räumliche Verteilung der 3D-Punkte als Proxy — das Prinzip ist dasselbe.\n\n\nVokabular: 50 visuelle Wörter (20 Iterationen)\n\n\n\n\n\n\n\n\nAbbildung 3: Bag of Visual Words — Vokabular aus 3D-Punkt-Merkmalen"
+  },
+  {
+    "objectID": "13_loop_closure.html#schritt-3-kombiniertes-scoring-loop-selektion",
+    "href": "13_loop_closure.html#schritt-3-kombiniertes-scoring-loop-selektion",
+    "title": "3.1 Loop Closure",
+    "section": "Schritt 3: Kombiniertes Scoring & Loop-Selektion",
+    "text": "Schritt 3: Kombiniertes Scoring & Loop-Selektion\n\n\nTop 8 Loop-Kandidaten (BoW + räumliche Nähe):\n  #1: KF255↔KF294  BoW-Sim=0.951  Dist=0.06m  Score=86\n  #2: KF244↔KF284  BoW-Sim=0.994  Dist=0.21m  Score=82\n  #3: KF 69↔KF113  BoW-Sim=0.989  Dist=0.28m  Score=77\n  #4: KF167↔KF199  BoW-Sim=0.988  Dist=0.30m  Score=76\n  #5: KF256↔KF295  BoW-Sim=0.938  Dist=0.26m  Score=74\n  #6: KF 82↔KF124  BoW-Sim=0.891  Dist=0.23m  Score=72\n  #7: KF 70↔KF114  BoW-Sim=0.982  Dist=0.40m  Score=70\n  #8: KF166↔KF198  BoW-Sim=0.981  Dist=0.46m  Score=67\n\n\n\n\n\n\n\n\nAbbildung 4: Beste Loop-Kandidaten via kombiniertem BoW + räumlichem Scoring"
+  },
+  {
+    "objectID": "13_loop_closure.html#schritt-4-geometrische-verifikation",
+    "href": "13_loop_closure.html#schritt-4-geometrische-verifikation",
+    "title": "3.1 Loop Closure",
+    "section": "Schritt 4: Geometrische Verifikation",
+    "text": "Schritt 4: Geometrische Verifikation\nJeder Kandidat wird geometrisch geprüft: Wie viele 3D-Punkte beider Frames liegen in derselben Weltregion? Eine hohe Überlappung bestätigt den Loop.\n\n\nGeometrische Verifikation:\n\nRank  Paar          Inlier-Ratio  Inliers   Verifiziert?   \n------------------------------------------------------------\n#1     KF255↔KF294  0.400        178        ✓ JA\n#2     KF244↔KF284  0.511        267        ✓ JA\n#3     KF 69↔KF113  0.446        221        ✓ JA\n#4     KF167↔KF199  0.415        226        ✓ JA\n#5     KF256↔KF295  0.391        194        ✓ JA\n#6     KF 82↔KF124  0.283        163        ✓ JA\n#7     KF 70↔KF114  0.378        185        ✓ JA\n#8     KF166↔KF198  0.535        278        ✓ JA\n\nVerifiziert: 8/8\n\n\n\n\n\n\n\n\nAbbildung 5: Geometrische Verifikation der Loop-Kandidaten"
+  },
+  {
+    "objectID": "13_loop_closure.html#konkretes-beispiel-loop-closure-mit-echten-kameradaten",
+    "href": "13_loop_closure.html#konkretes-beispiel-loop-closure-mit-echten-kameradaten",
+    "title": "3.1 Loop Closure",
+    "section": "Konkretes Beispiel: Loop Closure mit echten Kameradaten",
+    "text": "Konkretes Beispiel: Loop Closure mit echten Kameradaten\nDer am höchsten bewertete Loop (#1) ist KF255 ↔︎ KF294 mit 40% Punkt-Überlappung. Hier sehen wir die tatsächlichen Kamerabilder — Frames, die per ffmpeg an der passenden Zeitposition aus dem Video extrahiert wurden.\n\n\nBester Loop: KF255 ↔ KF294\n  Überlappung: 40%\n  Gemeinsame 3D-Punkte: 178\n  Räumliche Distanz: 0.06 m\n  Zeitlicher Abstand: 195 Original-Frames\nKF255: 445 sichtbare Punkte, 800×400\nKF294: 522 sichtbare Punkte, 800×400\n\n\n\n\n\n\n\n\nAbbildung 6: Konkretes Loop-Closure-Beispiel mit rekonstruierten Kamerabildern\n\n\n\n\n\n\n\n\n\n\n\nKF 255 — Frühere Aufnahme\n\n\n\n\n\n\n\nKF 294 — Spätere Aufnahme\n\n\n\n\n\n\n\n\n\n\n\nTipp\n\n\n\nDie Kamera hat den Ort wiedererkannt — nicht durch GPS, sondern rein visuell. Vergleiche die Strukturen in beiden Bildern: dieselbe Umgebung aus leicht verschobener Perspektive. Die 3D-Punktwolken bestätigen geometrisch, dass es sich um denselben Ort handelt. Diese Loop-Closure-Kante geht als Constraint in die globale Optimierung (3.2) ein.\n\nErgebnis: Loop-Closure Constraints für 3.2\n\n\n\n\n============================================================\nZUSAMMENFASSUNG — Loop Closure Detection\n============================================================\nKeyFrames:           349\nPfadlänge:           1029.3 m\nMax. Drift:          15.59 m\nRäumliche Kandidaten: 84\nVerifizierte Loops:   8\n\n→ Diese Constraints fließen in die Pose-Graph-Optimierung (3.2) ein.\n============================================================\n\n✓ loop_constraints.json gespeichert\n\n\n\nAbbildung 7"
+  },
+  {
+    "objectID": "13_loop_closure.html#ergebnis-loop-closure-constraints-für-3.2",
+    "href": "13_loop_closure.html#ergebnis-loop-closure-constraints-für-3.2",
+    "title": "3.1 Loop Closure",
+    "section": "Ergebnis: Loop-Closure Constraints für 3.2",
+    "text": "Ergebnis: Loop-Closure Constraints für 3.2\n\n\n\n\n============================================================\nZUSAMMENFASSUNG — Loop Closure Detection\n============================================================\nKeyFrames:           349\nPfadlänge:           1029.3 m\nMax. Drift:          15.59 m\nRäumliche Kandidaten: 84\nVerifizierte Loops:   8\n\n→ Diese Constraints fließen in die Pose-Graph-Optimierung (3.2) ein.\n============================================================\n\n✓ loop_constraints.json gespeichert\n\n\n\nAbbildung 7"
+  },
+  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "vSLAM – Virtual Simultaneous Localization and Mapping",
@@ -39,7 +158,7 @@
     "href": "index.html#loop-closure",
     "title": "vSLAM – Virtual Simultaneous Localization and Mapping",
     "section": "3.1 Loop Closure",
-    "text": "3.1 Loop Closure\n\n\n\nDas Drift-Problem\nVisuelle Odometrie (1.2) schätzt die Kamera-Bewegung Frame für Frame. Jede Schätzung hat einen kleinen Fehler — doch Fehler akkumulieren sich: Der geschätzte Pfad driftet mit zunehmender Distanz immer weiter vom wahren Pfad ab.\n\n  \n    Lokal (10 Frames)\n    \n      ●→●→●\n      ●→●→●\n    \n    GT & VO fast deckungsgleich\n  \n  →\n  \n    Global (350 Frames)\n    \n      ⤡⤡⤡⤡\n      ━━━━\n    \n    Mehrere Meter Abweichung\n  \n\nAuf unserem ~350-KeyFrame-Datensatz beträgt der Drift am Ende mehrere Meter. Loop Closure löst das Problem: Es erkennt, wann die Kamera an einen bereits besuchten Ort zurückkehrt, und liefert Constraints zur Korrektur des Drifts.\n\n\nDas Loop-Closure-Prinzip\nZwei KeyFrames, die nah im Raum aber weit in der Zeit auseinanderliegen, zeigen wahrscheinlich denselben Ort — ein Loop.\n\n  \n    \n      KF₁ → KF₂ → ... → KF₆₂ → ... → KF₁₀₆ → ... → KF₃₄₉\n    \n    \n      ━━━━ LOOP ━━━━\n      \n        KF₆₂ und KF₁₀₆ sind am selben Ort (1.95 m)\n    \n  \n\nDie vier Schritte der Loop-Closure-Detektion:\n\nRäumliche Kandidaten — Paare mit Distanz &lt; 1.5 m & Δt &gt; 20 Frames\nBag of Visual Words — Vokabular aus 3D-Merkmalen, χ²-Ähnlichkeit\nKombiniertes Scoring — BoW-Ähnlichkeit × räumliche Nähe\nGeometrische Verifikation — 3D-Punktwolken-Überlappung prüfen\n\nNur Kandidaten, die alle vier Schritte bestehen, werden Loop-Closure-Kanten — die Constraints für die globale Optimierung in 3.2.\n\n\nSchritt 1: Räumliche Loop-Kandidaten\nDistanzmatrix aller KeyFrame-Positionen — nah im Raum, weit in der Zeit:\n\nDistanzschwelle: \\(&lt; 1.5\\,\\text{m}\\)\nTemporaler Mindestabstand: \\(\\Delta t &gt; 20\\) KeyFrames\n\n\n  \n    \n      Distanzmatrix log(1 + D) — diagonal = 0, hell = nah\n    \n      KF 0  ████████▇▅▃▂▁▁▁\n      KF 50 ████▇▅▃▂▁▁▁▁▁▁\n      KF100 ▁▁▁▁▂▅▇████████ ← Loop-Kandidat!\n      KF150 ▁▁▁▁▁▁▂▅▇███████\n             0   50  100 150\n    \n  \n\nAus ~349 Frames → hunderte rohe Paare → Non-Maximum Suppression reduziert auf ~15–20 Kandidaten (einer pro zeitlichem Cluster). Der Filter ist bewusst liberal — lieber zu viele als echte Loops zu verpassen.\n\n\nSchritt 2: Bag of Visual Words\nPlace Recognition: Jeder KeyFrame wird als Histogramm visueller Wörter beschrieben — ähnliche Frames haben ähnliche Histogramme.\n\nVokabular lernen: k-Means++ über 3D-Punktmerkmale → \\(K=50\\) Zentren\nFrame-Vektor: BoW-Histogramm \\(v \\in \\mathbb{R}^{50}\\) (normiert)\nÄhnlichkeit: \\(\\chi^2\\)-Distanz zwischen BoW-Vektoren\n\n\\[\n\\chi^2(v_a, v_b) = \\frac{1}{2} \\sum_{k=1}^{K}\n\\frac{(v_a^{(k)} - v_b^{(k)})^2}{v_a^{(k)} + v_b^{(k)} + \\varepsilon}\n\\]\n\n  \n    KF 10 ≈ KF 60 → χ² = 0.12 (ähnlich)\n    KF 10 ≈ KF 200 → χ² = 0.87 (verschieden)\n  \n\nNiedrige \\(\\chi^2\\) = hohe visuelle Ähnlichkeit. Visuell ähnliche, räumlich nahe Frames sind Loop-Kandidaten.\n\n\nSchritt 3: Kombiniertes Scoring\nZwei unabhängige Signale fusionieren zu einem Score:\n\nBoW-Ähnlichkeit: \\(1 - \\chi^2_{\\text{norm}}\\)\nRäumliche Nähe: \\(1 / (D_{\\text{norm}} + 0.01)\\)\n\n\\[\\text{Score}_{ij} = \\text{BoW-Ähnlichkeit}_{ij} \\;\\times\\; \\frac{1}{D_{ij}^{\\text{norm}} + 0.01}\\]\n\n  \n    Top-8 Loop-Kandidaten\n    \n      #1 KF62↔KF106  Score=580\n      #2 KF56↔KF100  Score=412\n      #3 KF60↔KF104  Score=253\n      #4 KF64↔KF108  Score=198\n      #5–8: Absteigend…\n    \n  \n\nWarum beide Signale? BoW allein kann falsch-positive liefern — ähnliche Struktur an anderem Ort. Die räumliche Nähe eliminiert diese. Ein echter Loop muss beide Bedingungen erfüllen.\n\n\nSchritt 4: Geometrische Verifikation\nWie viele 3D-Punkte beider Frames liegen in derselben Weltregion?\n\nFür jeden Punkt in KF\\(_i\\): nächsten Punkt in KF\\(_j\\) finden\nInlier: Punktabstand \\(&lt; 0.5\\,\\text{m}\\)\nInlier-Ratio \\(= \\frac{\\text{Inliers}}{\\text{Punkte in KF}_i}\\)\nSchwellwert: Inlier-Ratio \\(&gt; 10\\%\\)\n\nErgebnis auf unserem Datensatz:\n\n\n\nRank\nPaar\nRatio\nInliers\nStatus\n\n\n\n\n#1\nKF62↔︎KF106\n69%\n220\n✓ verifiziert\n\n\n#2\nKF56↔︎KF100\n55%\n178\n✓ verifiziert\n\n\n#3–8\n…\n&lt; 10%\n—\n✗ verworfen\n\n\n\nNur 2 von 8 Kandidaten bestehen die geometrische Prüfung. Der strenge Filter verhindert falsche Loop-Kanten, die den Pose-Graphen verzerren würden.\n\n\nKonkretes Beispiel: KF62 ↔︎ KF106\nDer stärkste verifizierte Loop: 219 Original-Frames (40.8 s) zwischen den Aufnahmen, die Kamera kehrt auf 1.95 m genau an dieselbe Position zurück.\n\n  \n    \n    KF 62 — frühere Aufnahme\n  \n  \n    \n    KF 106 — spätere Aufnahme\n  \n\n\n\n\nMetrik\nWert\n\n\n\n\nRäumliche Distanz\n1.95 m\n\n\n3D-Überlappung\n69% (220 Punkte)\n\n\nZeitlicher Abstand\n219 Frames × 0.187 s = 40.8 s\n\n\n\nVergleiche die Strukturen in beiden Bildern — dieselbe Umgebung aus leicht verschobener Perspektive, rein visuell wiedererkannt, ohne GPS.\n\n\nVon Loops zu Constraints\nJedes verifizierte Loop-Paar wird eine Loop-Closure-Kante im Pose-Graphen:\n\n  \n    Odometrie-Kanten\n    \n      KFᵢ → KFᵢ₊₁\n      KFᵢ₊₁ → KFᵢ₊₂\n      KFᵢ₊₂ → KFᵢ₊₃\n    \n    \n      Frame-zu-Frame~349 Kanten\n  \n  +\n  \n    Loop-Kanten ⭐\n    \n      KF₆₂ ≡ KF₁₀₆\n      KF₅₆ ≡ KF₁₀₀\n    \n    \n      „Selber Ort\"2 verifizierte Kanten\n  \n  =\n  \n    Pose-Graph\n    \n      Überbestimmtes System→ Optimierung in 3.2\n  \n\nDatenaustausch: Die Loop-Paare werden als loop_constraints.json gespeichert — mit Index-Paaren, Konfidenz (Inlier-Ratio) und Trajektorie. Die Pose-Graph- Optimierung in 3.2 liest diese Datei ein und korrigiert den globalen Drift.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 8 Weiter →"
+    "text": "3.1 Loop Closure\n\n\n\nDas Drift-Problem & Loop-Closure-Prinzip\nVisuelle Odometrie (1.2) schätzt die Kamera-Bewegung Frame für Frame. Jede Schätzung hat einen kleinen Fehler — doch Fehler akkumulieren sich: auf unserem ~350-KeyFrame-Datensatz beträgt der Drift am Ende mehrere Meter.\nLoop Closure erkennt, wann die Kamera an einen bereits besuchten Ort zurückkehrt: Zwei KeyFrames, die nah im Raum aber weit in der Zeit auseinanderliegen, zeigen denselben Ort — ein Loop.\nDie vier Schritte der Loop-Closure-Detektion:\n\nRäumliche Kandidaten — Paare mit Distanz &lt; 1.5 m & Δt &gt; 20 Frames\nBag of Visual Words — Vokabular aus 3D-Merkmalen, χ²-Ähnlichkeit\nKombiniertes Scoring — BoW-Ähnlichkeit × räumliche Nähe\nGeometrische Verifikation — 3D-Punktwolken-Überlappung prüfen\n\nNur Kandidaten, die alle vier Schritte bestehen, werden Loop-Closure-Kanten — die Constraints für die globale Optimierung in 3.2.\n\n\nSchritt 1: Räumliche Loop-Kandidaten\nDistanzmatrix aller KeyFrame-Positionen — nah im Raum, weit in der Zeit:\n\nDistanzschwelle: \\(&lt; 1.5\\,\\text{m}\\)\nTemporaler Mindestabstand: \\(\\Delta t &gt; 20\\) KeyFrames\n\n\n  \n\nAus ~349 Frames → 236 rohe Paare → Non-Maximum Suppression reduziert auf 84 Kandidaten (einer pro zeitlichem Cluster). Der Filter ist bewusst liberal — lieber zu viele als echte Loops zu verpassen; das teure BoW- und Geometrie-Scoring trennt anschließend die echten Loops heraus.\n\n\nSchritt 2: Bag of Visual Words\nPlace Recognition: Jeder KeyFrame wird als Histogramm visueller Wörter beschrieben — ähnliche Frames haben ähnliche Histogramme.\n\nVokabular lernen: k-Means++ über 3D-Punktmerkmale → \\(K=50\\) Zentren\nFrame-Vektor: BoW-Histogramm \\(v \\in \\mathbb{R}^{50}\\) (normiert)\nÄhnlichkeit: \\(\\chi^2\\)-Distanz zwischen BoW-Vektoren\n\n\\[\n\\chi^2(v_a, v_b) = \\frac{1}{2} \\sum_{k=1}^{K}\n\\frac{(v_a^{(k)} - v_b^{(k)})^2}{v_a^{(k)} + v_b^{(k)} + \\varepsilon}\n\\]\n\n  \n\nDie hellen Diagonalstreifen zeigen Frames mit hoher visueller Ähnlichkeit — genau dort liegen potenzielle Loops.\n\n\nSchritt 3: Kombiniertes Scoring\nZwei unabhängige Signale fusionieren zu einem Score:\n\nBoW-Ähnlichkeit: \\(1 - \\chi^2_{\\text{norm}}\\)\nRäumliche Nähe: \\(1 / (D_{\\text{norm}} + 0.01)\\)\n\n\\[\\text{Score}_{ij} = \\text{BoW-Ähnlichkeit}_{ij} \\;\\times\\; \\frac{1}{D_{ij}^{\\text{norm}} + 0.01}\\]\n\n  \n\nDie roten Linien zeigen die Top-8 Kandidaten — alle liegen an Stellen, an denen die Kamera dieselbe Parkhausrunde ein zweites Mal durchfährt. BoW allein kann falsch-positive liefern (ähnliche Struktur an anderem Ort); die räumliche Nähe eliminiert diese.\n\n\nSchritt 4: Geometrische Verifikation\nWie viele 3D-Punkte beider Frames liegen in derselben Weltregion?\n\nFür jeden Punkt in KF\\(_i\\): nächsten Punkt in KF\\(_j\\) finden\nInlier: Punktabstand \\(&lt; 0.5\\,\\text{m}\\)\nInlier-Ratio \\(= \\frac{\\text{Inliers}}{\\text{Punkte in KF}_i}\\)\nSchwellwert: Inlier-Ratio \\(&gt; 10\\%\\)\n\nErgebnis auf unserem Datensatz:\n\n\n\nRank\nPaar\nRatio\nInliers\nStatus\n\n\n\n\n#1\nKF255↔︎KF294\n40%\n178\n✓ verifiziert\n\n\n#2\nKF244↔︎KF284\n51%\n267\n✓ verifiziert\n\n\n#8\nKF166↔︎KF198\n53%\n278\n✓ verifiziert\n\n\n\nAlle 8 von 8 Kandidaten bestehen die geometrische Prüfung (Ratios 28–53 %). Das zeigt: Die Vorfilterung aus räumlicher Nähe und BoW-Ähnlichkeit ist bereits so selektiv, dass kaum Falsch-Positive durchkommen — die geometrische Verifikation bestätigt die Loops und ist die letzte Absicherung gegen verzerrende Kanten.\n\n\nErgebnis: KF255 ↔︎ KF294 → Loop-Constraint\nDer am höchsten bewertete Loop (#1): 195 Original-Frames (21.6 s) zwischen den Aufnahmen, die Kamera kehrt auf 0.06 m genau an dieselbe Position zurück.\n\n  \n    \n    KF 255 — frühere Aufnahme\n  \n  \n    \n    KF 294 — spätere Aufnahme\n  \n\n\n\n\nMetrik\nWert\n\n\n\n\nRäumliche Distanz\n0.06 m\n\n\n3D-Überlappung\n40% (178 Punkte)\n\n\nZeitlicher Abstand\n195 Frames × 0.111 s = 21.6 s\n\n\n\nInsgesamt bestehen 8 Loop-Paare die Verifikation. Sie werden als loop_constraints.json gespeichert und fließen als Loop-Closure-Kanten in die Pose-Graph-Optimierung (3.2) ein.\n\n\n\n\n← Zurück\n\n\n\n\nSlide 1 / 6 Weiter →"
   },
   {
     "objectID": "index.html#globale-optimierung",
