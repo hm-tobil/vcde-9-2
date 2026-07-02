@@ -285,7 +285,7 @@ else:
     print("Keine Daten gefunden.")
 ```
 
-# Zentrale Komponenten des VSLAM Algorithmus
+# Zentrale Komponenten des vSLAM Algorithmus
 
 Der vSLAM Workflow kann zum besseren Verständnis in drei grundlegende Teile aufgebrochen werden:
 
@@ -1100,7 +1100,7 @@ Mehrere Keyframes (z.B. 3)
 :::
 
 ::: {.vslam-slide}
-#### Pose-Schätzung: Perspective-n-Point (PnP)
+#### Schritt 3a: Pose-Schätzung: Perspective-n-Point (PnP)
 
 Für Kamera 0 und 1 liefert die **Essential Matrix** (Step 1.2) die erste Relativpose, rein aus 2D-2D-Korrespondenzen, ganz ohne 3D-Wissen. Sobald aus diesem ersten Paar aber 3D-Landmarks trianguliert sind, steht für alle weiteren Keyframes eine stärkere Informationsquelle zur Verfügung: **bekannte 3D-Punkte + ihre 2D-Beobachtung** im neuen Bild.
 
@@ -1116,7 +1116,7 @@ $$
 :::
 
 ::: {.vslam-slide}
-#### PnP vs. Essential Matrix: kurzer Vergleich
+#### Schritt 3b: PnP vs. Essential Matrix: kurzer Vergleich
 
 Beide Verfahren schätzen $(R, t)$ einer Kamera, unterscheiden sich aber in Eingabedaten und Einsatzpunkt:
 
@@ -1132,7 +1132,7 @@ Beide Verfahren schätzen $(R, t)$ einer Kamera, unterscheiden sich aber in Eing
 :::
 
 ::: {.vslam-slide}
-#### Mathematik: Triangulation (DLT)
+#### Schritt 4: Mathematik: Triangulation (DLT)
 Sobald Rotation $R_i$ und Translation $t_i$ einer Kamera aus der Pose Estimation bekannt sind, lässt sich
 die 3D-Position $X$ eines Landmarks bestimmen. Für jede Beobachtung $x_i = (u, v)$ in Keyframe $i$ mit Projektionsmatrix $P_i = K\,[R_i \mid t_i]$ gilt:
 
@@ -1161,7 +1161,7 @@ Die Lösung ist der rechte Singulärvektor von $A$ zum kleinsten Singulärwert, 
 :::
 
 ::: {.vslam-slide}
-#### Beispiel: lokale Karte aus 3 Keyframes unseres Datensatzes
+#### Schritt 5: Beispiel: lokale Karte aus 3 Keyframes unseres Datensatzes
 
 Wir nehmen drei Keyframes aus dem TUM-Datensatz mit einigen Frames Abstand, extrahieren ihre Features, triangulieren die Tracks und erhalten eine **lokale 3D-Punktwolke** zusammen mit den drei Kamera-Positionen.
 
@@ -1223,7 +1223,7 @@ Das Ziel der lokalen Optimierung ist es, diese Inkonsistenzen gemeinsam zu glät
 :::
 
 ::: {.vslam-slide}
-#### Reprojektionsfehler: der Optimierungs-Anker
+#### Schritt 1: Reprojektionsfehler: der Optimierungs-Anker
 Der Reprojektionsfehler misst, **wie gut** Pose und 3D-Punkt zusammenpassen. Wenn alles perfekt wäre, würde die Projektion des 3D-Punkts $X_j$ durch Kamera $i$ genau auf der beobachteten Pixel-Position $x_{ij}$ landen:
 
 $$
@@ -1241,7 +1241,7 @@ In der Praxis bleibt immer ein Restfehler; dieser wird durch Bundle Adjustment s
 :::
 
 ::: {.vslam-slide}
-#### Konvisibilitätsgraph
+#### Schritt 2: Konvisibilitätsgraph
 Um Beziehungen zwischen Keyframes zu bestimmen, die dieselben Feature-Punkte enthalten, wird ein Konvisibilitätsgraph verwendet. Jeder Knoten im Graphen stellt einen Frame dar. Sobald eine Mindestanzahl an übereinstimmenden Feature-Punkten zwischen zwei Frames erkannt wird, werden die entsprechenden Knoten mit einer Kante verbunden.
 
 In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle Kamera-Posen gleichzeitig zu optimieren. Der Konvisibilitätsgraph ermöglicht eine **selektive Optimierung** über die jeweils lokal verbundene Nachbarschaft.
@@ -1255,7 +1255,7 @@ In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle
 :::
 
 ::: {.vslam-slide}
-#### Mathematik: Bundle Adjustment
+#### Schritt 3: Mathematik: Bundle Adjustment
 Die lokale Optimierung minimiert den Reprojektionsfehler über alle Keyframe-Posen $T_i = (R_i, t_i)$ und 3D-Punkte $X_j$, die im Konvisibilitätsgraphen verbunden sind:
 
 $$
@@ -1280,7 +1280,7 @@ Quadratisch nahe null, linear für große Residuen; so dominieren einzelne Ausre
 :::
 
 ::: {.vslam-slide}
-#### Robustheits-Pipeline
+#### Schritt 4: Robustheits-Pipeline
 Reines BA reicht in der Praxis nicht; ein paar Outlier oder schlecht triangulierte Punkte können das Ergebnis verschlechtern. Im Notebook nutzen wir deshalb folgende Pipeline:
 
 1. **Parallaxe-Filter vor BA**: Punkte mit < 1° Sichtwinkel zwischen den Kameras verwerfen; ihre Tiefe wäre nicht beobachtbar und sie würden gegen unendlich driften.
@@ -1291,7 +1291,7 @@ Diese Schritte sind Standard in SLAM-Systemen (ORB-SLAM etc.).
 :::
 
 ::: {.vslam-slide}
-#### Beispiel: Bundle Adjustment auf unseren Keyframes
+#### Schritt 5: Beispiel: Bundle Adjustment auf unseren Keyframes
 
 Wir nehmen die 3D-Punkte aus den drei Keyframes, fügen synthetisches Rauschen auf die Initialposen und Punktpositionen hinzu (simuliert die typische VO-Drift) und lassen BA optimieren:
 
@@ -1501,7 +1501,7 @@ und verteilt den akkumulierten Fehler optimal über die gesamte Trajektorie.
 :::
 
 ::: {.vslam-slide}
-#### Der Pose-Graph
+#### Schritt 1: Der Pose-Graph
 Die Trajektorie wird als **Graph** mit zwei Arten von Kanten modelliert:
 
 - **Knoten:** Jede KeyFrame-Pose $T_i \in SE(3)$ ist ein Knoten ($n \approx 349$)
@@ -1517,7 +1517,7 @@ Das macht die Optimierung effizient.
 :::
 
 ::: {.vslam-slide}
-#### Fehler auf der Lie-Algebra $\mathfrak{se}(3)$
+#### Schritt 2: Fehler auf der Lie-Algebra $\mathfrak{se}(3)$
 Für jede Kante $(i,j)$ mit gemessener relativer Transformation
 $\tilde{T}_{ij}$ wird der **Fehler auf der Lie-Algebra** formuliert:
 
@@ -1546,7 +1546,7 @@ $$
 :::
 
 ::: {.vslam-slide}
-#### Das Optimierungsproblem
+#### Schritt 3: Das Optimierungsproblem
 Das vollständige PGO-Problem minimiert die Summe der quadratischen Fehler
 über **alle Kanten** des Pose-Graphen:
 
@@ -1576,7 +1576,7 @@ Least-Squares-Problem gelöst werden.
 :::
 
 ::: {.vslam-slide}
-#### Simulierter Drift
+#### Schritt 4: Simulierter Drift
 Um den Effekt der PGO realistisch zu demonstrieren, wird der Trajektorie
 künstlicher Drift hinzugefügt:
 
@@ -1596,7 +1596,7 @@ von der Ground Truth ab, ein realistisches Szenario für PGO.
 :::
 
 ::: {.vslam-slide}
-#### Sparse Lineare Least-Squares-Lösung
+#### Schritt 5: Sparse Lineare Least-Squares-Lösung
 Für die Translationen wird das Problem linear. Das System hat die Form:
 
 $$\min_{\mathbf{x}}\; \|A\mathbf{x} - \mathbf{b}\|^2$$
@@ -1618,7 +1618,7 @@ via **sparse Cholesky-Zerlegung** (`scipy.sparse.linalg.spsolve`).
 :::
 
 ::: {.vslam-slide}
-#### Ergebnis Teil 1: Trajektorie vorher/nachher
+#### Schritt 6: Ergebnis Teil 1: Trajektorie vorher/nachher
 Das PGO-Diagramm zeigt die Korrektur in Aktion. **Oben links:** die verrauschte
 Trajektorie (rot); Loops klaffen auseinander. **Oben Mitte:** nach der PGO (grün)
 sind die Loops geschlossen.
@@ -1639,7 +1639,7 @@ nur die Enden der Loops zu fixieren.
 :::
 
 ::: {.vslam-slide}
-#### Ergebnis Teil 2: Fehleranalyse
+#### Schritt 7: Ergebnis Teil 2: Fehleranalyse
 Das Diagramm zeigt auch die quantitative Verbesserung:
 
 ```{=html}
