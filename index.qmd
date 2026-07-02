@@ -285,21 +285,21 @@ Details navigieren.
 ::: {.vslam-slide}
 #### Einleitung: Warum Feature Extraction?
 
-Ein Roboter sieht nur Pixel — milionen davon. Aber:
+Ein Roboter sieht nur Pixel, milionen davon. Aber:
 - Ein Pixel allein ist bedeutungslos
 - Pixel können sich durch Beleuchtung, Bewegung, Rauschen ändern
 - **Wir brauchen markante Punkte**, die zuverlässig wiedererkannt werden
 
 Diese markanten Punkte sind **Features** oder **Keypoints**:
-- Hauptsächlich **Ecken** — wo sich Helligkeit in mehrere Richtungen stark ändert
+- Hauptsächlich **Ecken**, wo sich Helligkeit in mehrere Richtungen stark ändert
 - Stabil über Zeit und Perspektive
 - Können zwischen Bildern verfolgt werden
 
-**Feature Extraction pipeline** extrahiert diese 40–500 besten Punkte aus jedem Bild — robust, schnell, verteilt.
+**Feature Extraction pipeline** extrahiert diese 40–500 besten Punkte aus jedem Bild, robust, schnell, verteilt.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 1a: Graustufen — Das Problem
+#### Schritt 1a: Graustufen (Das Problem)
 
 Ein Farbfarbbild hat **3 Kanäle: R (Rot), G (Grün), B (Blau)**. Aber:
 
@@ -308,7 +308,7 @@ Ein Farbfarbbild hat **3 Kanäle: R (Rot), G (Grün), B (Blau)**. Aber:
 - **Wir brauchen nur Struktur:** Helligkeitsgradienten, nicht Farbinformation
 - **3 Kanäle = 3× Rechenzeit:** RGB verarbeiten braucht 3 Operationen pro Pixel; Graustuen nur 1
 
-→ Konvertiere zu **1 Kanal (Graustufen)** — schneller, simpler, robuster
+→ Konvertiere zu **1 Kanal (Graustufen)**, schneller, simpler, robuster
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -318,16 +318,16 @@ Ein Farbfarbbild hat **3 Kanäle: R (Rot), G (Grün), B (Blau)**. Aber:
 :::
 
 ::: {.vslam-slide}
-#### Schritt 1b: Graustufen — Die Formel
+#### Schritt 1b: Graustufen (Die Formel)
 
 Die Konvertierung von RGB zu Graustuen verwendet eine **gewichtete Summe**, die das menschliche Auge berücksichtigt:
 
 $$I_{\text{grau}} = 0{,}299 \cdot R + 0{,}587 \cdot G + 0{,}114 \cdot B$$
 
 **Gewichte erklärt:**
-- **Grün (58,7%)** — unser Auge ist dafür am empfindlichsten
-- **Rot (29,9%)** — zweitempfindlich
-- **Blau (11,4%)** — am wenigsten empfindlich
+- **Grün (58,7%):** unser Auge ist dafür am empfindlichsten
+- **Rot (29,9%):** zweitempfindlich
+- **Blau (11,4%):** am wenigsten empfindlich
 
 **Praktisches Beispiel:** Pixel (R=200, G=100, B=50)
 $$I = 0{,}299 \times 200 + 0{,}587 \times 100 + 0{,}114 \times 50 = 59{,}8 + 58{,}7 + 5{,}7 = 124 \text{ (Graustufen)}$$
@@ -336,7 +336,7 @@ Alle RGB-Informationen sind in diesem einen Wert komprimiert.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2a: Gauss-Filter — Das Problem
+#### Schritt 2a: Gauss-Filter (Das Problem)
 
 **Kamerasensoren erzeugen Rauschen:**
 - Zufällige Helligkeits-Schwankungen (elektrisches Rauschen, Temperaturschwankungen)
@@ -344,10 +344,10 @@ Alle RGB-Informationen sind in diesem einen Wert komprimiert.
 
 **Was passiert ohne Filter?**
 - Pixel 100 im Original, aber Sensor liefert 105, 98, 102, 107...
-- FAST Detektor sieht „schnelle Helligkeitswechsel" überall → **falsche Ecken erkannt**
+- FAST Detektor sieht „schnelle Helligkeitswechsel“ überall → **falsche Ecken erkannt**
 - Detector wird laut und unzuverlässig
 
-**Lösung:** **Gauss-Filter** — glätte Rauschen, ohne echte Kanten zu zerstören
+**Lösung:** **Gauss-Filter**, glätte Rauschen, ohne echte Kanten zu zerstören
 
 ```{=html}
 <div style="text-align: center; margin: 20px 0;">
@@ -357,7 +357,7 @@ Alle RGB-Informationen sind in diesem einen Wert komprimiert.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2b: Gauss-Filter — Die Formel und Gewichte
+#### Schritt 2b: Gauss-Filter (Die Formel und Gewichte)
 
 Der Gauss-Filter ersetzt jeden Pixel mit einem **gewichteten Durchschnitt** seiner Nachbarn. Die Gewichte folgen einer Gauss-Kurve:
 
@@ -376,13 +376,13 @@ Wo:
 | Diagonal (±1,±1) | √2 ≈ 1,4 | 0.025 | 2,5% |
 | Ecke (±2,±2) | √8 ≈ 2,8 | 0.004 | **0,4%** |
 
-**Die Gewichte addieren sich zu 1,0** — eine echte Wahrscheinlichkeitsverteilung.
+**Die Gewichte addieren sich zu 1,0**, eine echte Wahrscheinlichkeitsverteilung.
 
 Der Sinn: **Nahegelegene Pixel zählen viel mehr als weit entfernte.**
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2c: Gauss-Filter — Konkretes Beispiel
+#### Schritt 2c: Gauss-Filter (Konkretes Beispiel)
 
 **Szenario:** Ein einzelner heller Ausreißer im Bild (Pixel = 250, umgeben von Pixeln ≈ 20)
 
@@ -412,7 +412,7 @@ Der helle Ausreißer wird **stark abgeschwächt** (250 → 57). Das Rauschen ist
 :::
 
 ::: {.vslam-slide}
-#### Schritt 3a: Bildpyramide — Das Problem der Skalierung
+#### Schritt 3a: Bildpyramide (Das Problem der Skalierung)
 
 **Szenario:** Eine Straßenlaterne ist eine markante Ecke (Lichtquelle, scharfe Kanten).
 
@@ -432,7 +432,7 @@ Der helle Ausreißer wird **stark abgeschwächt** (250 → 57). Das Rauschen ist
 :::
 
 ::: {.vslam-slide}
-#### Schritt 3b: Bildpyramide — 8 Stufen mit Skalierungsfaktor 1,2
+#### Schritt 3b: Bildpyramide (8 Stufen mit Skalierungsfaktor 1,2)
 
 Die Bildpyramide erstellt **8 Versionen** desselben Bildes, jede um Faktor **1,2 kleiner**:
 
@@ -457,7 +457,7 @@ Jede Stufe kann Features erkennen, die auf der vorherigen Stufe unmöglich sind.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 3c: Bildpyramide — Rückrechnung und Sub-Pixel Genauigkeit
+#### Schritt 3c: Bildpyramide (Rückrechnung und Sub-Pixel Genauigkeit)
 
 **Problem:** Features werden auf **kleinen Stufen** gefunden, aber wir brauchen **Original-Koordinaten**.
 
@@ -486,13 +486,13 @@ Die Rückrechnung mit $1{,}2^k$ bewirkt, dass Features auf **höheren Stufen fei
 :::
 
 ::: {.vslam-slide}
-#### Schritt 4a: FAST Detektor — Das Konzept
+#### Schritt 4a: FAST Detektor (Das Konzept)
 
 **FAST** = **Features from Accelerated Segment Test**
 
 **Kernidee:** Eine Ecke ist ein Ort, wo sich Helligkeit **in mehrere Richtungen** plötzlich ändert.
 
-**Methode — für jeden Pixel p:**
+**Methode: für jeden Pixel p:**
 1. Zeichne einen **Kreis mit 16 Nachbarn** (Radius 3 Pixel)
 2. Prüfe jeden Nachbarn: ist er **signifikant heller** oder **signifikant dunkler** als p?
 3. Zähle **zusammenhängende** Nachbarn der gleichen Art
@@ -516,7 +516,7 @@ Die Rückrechnung mit $1{,}2^k$ bewirkt, dass Features auf **höheren Stufen fei
 :::
 
 ::: {.vslam-slide}
-#### Schritt 4b: FAST Detektor — Der Schwellenwert t
+#### Schritt 4b: FAST Detektor (Der Schwellenwert t)
 
 Nicht jede kleine Helligkeitsänderung ist eine echte Ecke. Deshalb verwendet FAST einen **Schwellenwert t**:
 
@@ -531,7 +531,7 @@ Nicht jede kleine Helligkeitsänderung ist eine echte Ecke. Deshalb verwendet FA
 
 **Ohne Threshold ($t=0$):**
 - Jeder kleine Rausch wird als Unterschied gezählt
-- Überall „Ecken" erkannt (besonders bei schlechtem Licht)
+- Überall „Ecken“ erkannt (besonders bei schlechtem Licht)
 - Detektor ist zu laut und unzuverlässig
 
 **Mit gutem Threshold ($t=15$):**
@@ -551,7 +551,7 @@ Mit $t=20$ zählt nur B. Kleine Schwankungen werden ignoriert.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 4c: FAST Detektor — Konkrete Beispiele
+#### Schritt 4c: FAST Detektor (Konkrete Beispiele)
 
 **Die 16er-Kreis-Maske um Pixel p:**
 
@@ -563,18 +563,18 @@ Mit $t=20$ zählt nur B. Kleine Schwankungen werden ignoriert.
     13  12  11  10  7  8  9
 ```
 
-**Beispiel 1 — Ecke erkannt:**
+**Beispiel 1: Ecke erkannt:**
 - Pixel p = 100, Threshold t = 15
 - Nachbarn 1–10 sind alle 120+ (heller als 115)
 - **10 zusammenhängende** heller → **ECKE** ✓
 
-**Beispiel 2 — Keine Ecke:**
+**Beispiel 2: Keine Ecke:**
 - Pixel p = 100, Threshold t = 15
 - Nachbarn sind verstreut: einige 120, andere 110, manche 100
 - Längster zusammenhängender Bogen: nur 4 Nachbarn
 - Weniger als 9 → **keine Ecke** ✗
 
-**Beispiel 3 — Reine Kante (nicht Ecke):**
+**Beispiel 3: Reine Kante (nicht Ecke):**
 - Nachbarn 1–8 alle dunkler (< 85)
 - Nachbarn 9–16 alle heller (> 115)
 - **Aber:** Helle und Dunkle sind nicht in **einer** Gruppe zusammenhängend
@@ -586,11 +586,11 @@ Mit $t=20$ zählt nur B. Kleine Schwankungen werden ignoriert.
 
 
 ::: {.vslam-slide}
-#### Schritt 5: Harris Corner Scoring — Qualitätsbewertung
+#### Schritt 5: Harris Corner Scoring (Qualitätsbewertung)
 
 FAST liefert **Kandidaten** (ca. 275), aber nicht alle sind gleich hochwertig. Der **Harris Detektor** bewertet die Qualität über lokale Gradienten.
 
-**Gradienten — wie schnell Helligkeit sich ändert:**
+**Gradienten: wie schnell Helligkeit sich ändert:**
 
 $$I_x = \frac{\partial I}{\partial x} \quad \text{(Änderung horizontal)}$$
 $$I_y = \frac{\partial I}{\partial y} \quad \text{(Änderung vertikal)}$$
@@ -599,7 +599,7 @@ $$I_y = \frac{\partial I}{\partial y} \quad \text{(Änderung vertikal)}$$
 - $I_x = \frac{50-200}{2} = -75$ (schneller Helligkeitssturz)
 - $I_y \approx 0$ (keine vertikale Änderung)
 
-**Die Struktur-Matrix M — drei Summen über ein Fenster:**
+**Die Struktur-Matrix M: drei Summen über ein Fenster:**
 
 $$S_{xx} = \sum_{i,j} I_x(i,j)^2, \quad S_{yy} = \sum_{i,j} I_y(i,j)^2, \quad S_{xy} = \sum_{i,j} I_x(i,j) \cdot I_y(i,j)$$
 
@@ -609,7 +609,7 @@ Diese drei Werte bilden die **2×2 Struktur-Matrix** M.
 
 $$R = \det(M) - k \cdot [\text{tr}(M)]^2 \quad (k \approx 0{,}04)$$
 
-**Interpretation — was sagt uns R?**
+**Interpretation: was sagt uns R?**
 
 | R-Wert | Bedeutung | Typ |
 |:---:|:---|:---:|
@@ -627,12 +627,12 @@ Je höher R, desto robuster die Ecke gegen Rotation und Rauschen.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 6a: Quadtree-Verteilung — Das Problem
+#### Schritt 6a: Quadtree-Verteilung (Das Problem)
 
 FAST findet **zu viele Ecken** (ca. 275), besonders:
 - An Kanten (lineare Objekte)
 - Textur-reiche Bereiche (Rasen, Stoff, Baustellen)
-- Clustered — nicht gleichmäßig verteilt
+- Clustered, nicht gleichmäßig verteilt
 
 **Warum ist das ein Problem?**
 
@@ -651,7 +651,7 @@ FAST findet **zu viele Ecken** (ca. 275), besonders:
 :::
 
 ::: {.vslam-slide}
-#### Schritt 6b: Quadtree — Die Selektion
+#### Schritt 6b: Quadtree (Die Selektion)
 
 **Quadtree-Algorithmus:**
 
@@ -689,7 +689,7 @@ Finale 40–500 hochwertige, verteilte, robuste Keypoints
 ::: {.vslam-slide}
 #### Schritt 7a: Der Feature-Extraction Trichter
 
-Die Pipeline ist ein **Trichter** — **Menge sinkt, Qualität steigt:**
+Die Pipeline ist ein **Trichter**: **Menge sinkt, Qualität steigt:**
 
 $$\text{ca. 787 FAST-Ecken} \xrightarrow[\text{Verteilung}]{\text{Quadtree}} \text{73 ausgewählte} \xrightarrow[\text{Top-Scoring}]{\text{Harris}} \text{40 beste}$$
 
@@ -701,7 +701,7 @@ $$\text{ca. 787 FAST-Ecken} \xrightarrow[\text{Verteilung}]{\text{Quadtree}} \te
 | **Nach Quadtree** | ~73 | Weniger, gleichmäßig verteilt, gemischt |
 | **Nach Top-Harris** | ~40 | Wenige, beste, sehr robust |
 
-**Die visuelle Metapher — ein Trichter:**
+**Die visuelle Metapher (ein Trichter):**
 ```
 FAST      Quadtree    Harris
   ↓         ↓           ↓
@@ -751,22 +751,22 @@ Weniger Features bedeutet:
 
 Die 40–500 Keypoints werden jetzt verwendet für:
 
-**1.2 — Visuelle Odometrie (VO)**
+**1.2: Visuelle Odometrie (VO)**
 - Diese Punkte werden in **nächstem Bild** gesucht
 - Ihre Bewegung verrät, wie sich die Kamera bewegt
 - Berechnet Rotation (R) und Translation (t)
 
-**2.1 — Lokales Mapping**
+**2.1: Lokales Mapping**
 - Punkte aus **mehreren Frames** werden trianguliert
 - Aus 2D-Pixel werden echte **3D-Weltkoodinaten**
 - Lokale Karte entsteht
 
-**2.2 — Bundle Adjustment**
+**2.2: Bundle Adjustment**
 - Kamera-Pose und 3D-Punkte werden gemeinsam optimiert
 - Fehler werden minimiert
 - Konsistente 3D-Karte entsteht
 
-**3.1 / 3.2 — Loop Closure & Drift-Korrektur**
+**3.1 / 3.2: Loop Closure & Drift-Korrektur**
 - Algorithmus erkennt bekannte Orte (Loop Closure)
 - Trajectory-Fehler werden korrigiert (Drift)
 - Globale Konsistenz der Karte wiederhergestellt
@@ -795,7 +795,7 @@ Die 40–500 Keypoints werden jetzt verwendet für:
 ::: {.vslam-slide}
 #### Konzept: Was ist Visuelle Odometrie?
 
-Die 40–500 Keypoints aus 1.1 sind nur **Punkte im Bild** — noch keine Bewegung. Visuelle Odometrie (VO) berechnet daraus, **wie sich die Kamera bewegt hat**.
+Die 40–500 Keypoints aus 1.1 sind nur **Punkte im Bild**, noch keine Bewegung. Visuelle Odometrie (VO) berechnet daraus, **wie sich die Kamera bewegt hat**.
 
 **Grundprinzip:**
 1. Frame $k$: Features erkannt an Position $(x, y)$
@@ -803,20 +803,20 @@ Die 40–500 Keypoints aus 1.1 sind nur **Punkte im Bild** — noch keine Bewegu
 3. Aus der Verschiebung → Kamerabewegung schätzen
 
 **VO-Pipeline in 4 Schritten:**
-1. **Orientierung θ** — jeder Keypoint bekommt eine Richtung
-2. **Binärer Deskriptor** — Fingerabdruck aus 256 Bits
-3. **Matching** — Deskriptoren zwischen Frames vergleichen
-4. **Pose-Schätzung** — Rotation R und Translation t berechnen
+1. **Orientierung θ**: jeder Keypoint bekommt eine Richtung
+2. **Binärer Deskriptor**: Fingerabdruck aus 256 Bits
+3. **Matching**: Deskriptoren zwischen Frames vergleichen
+4. **Pose-Schätzung**: Rotation R und Translation t berechnen
 
-**Resultat:** Position und Orientierung der Kamera — Frame für Frame.
+**Resultat:** Position und Orientierung der Kamera, Frame für Frame.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 1: Orientierung θ — Rotationsinvarianz
+#### Schritt 1: Orientierung θ (Rotationsinvarianz)
 
 Wenn die Kamera sich dreht, sieht dieselbe Ecke aus einem anderen Winkel aus. Ohne Orientierung würde das Matching fehlschlagen.
 
-**Lösung:** Jede Ecke bekommt eine Orientierung θ — die Richtung zum **Helligkeits-Schwerpunkt** im 31×31 Patch.
+**Lösung:** Jede Ecke bekommt eine Orientierung θ, die Richtung zum **Helligkeits-Schwerpunkt** im 31×31 Patch.
 
 **Berechnung über Momente:**
 $m_{00} = \sum I, \quad m_{10} = \sum x \cdot I, \quad m_{01} = \sum y \cdot I$
@@ -826,7 +826,7 @@ $\theta = \text{atan2}(m_{01},\, m_{10})$
 - Helle Pixel rechts-unten: $m_{10} = +160$, $m_{01} = +80$
 - $\theta = \text{atan2}(80, 160) \approx 27°$ → Pfeil zeigt zum Hellen
 
-Dieselbe Ecke ergibt **immer denselben θ** — egal wie die Kamera gedreht ist.
+Dieselbe Ecke ergibt **immer denselben θ**, egal wie die Kamera gedreht ist.
 
 ```{=html}
 <div style="text-align: center; margin: 16px 0;">
@@ -836,16 +836,16 @@ Dieselbe Ecke ergibt **immer denselben θ** — egal wie die Kamera gedreht ist.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2a: Binärer Deskriptor — Prinzip
+#### Schritt 2a: Binärer Deskriptor (Prinzip)
 
-Jede Ecke braucht einen **Fingerabdruck** — eine kompakte Beschreibung, die Matching ermöglicht.
+Jede Ecke braucht einen **Fingerabdruck**, eine kompakte Beschreibung, die Matching ermöglicht.
 
 **BRIEF-Deskriptor: 256 Pixelpaar-Vergleiche:**
 
 Wähle 256 feste Pixelpaare $(A_i, B_i)$ im 31×31 Patch. Für jedes Paar:
 $\text{Bit}_i = \begin{cases} 1 & \text{wenn } I(A_i) > I(B_i) \\ 0 & \text{sonst} \end{cases}$
 
-Ergebnis: ein **256-Bit-String** — der Fingerabdruck der Ecke.
+Ergebnis: ein **256-Bit-String**, der Fingerabdruck der Ecke.
 
 **Vorteile:**
 - Extrem schnell zu berechnen (nur Vergleiche, keine Mathematik)
@@ -860,18 +860,18 @@ Ergebnis: ein **256-Bit-String** — der Fingerabdruck der Ecke.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 2b: Binärer Deskriptor — Rotationsinvarianz (steered BRIEF)
+#### Schritt 2b: Binärer Deskriptor: Rotationsinvarianz (steered BRIEF)
 
 **Problem:** Wenn die Kamera sich dreht, lesen die festen Paare andere Pixel ab → anderer Bitstring → kein Match.
 
-**Lösung — steered BRIEF:** Die Pixelpaare werden um den Winkel **θ gedreht**, bevor sie abgelesen werden.
+**Lösung (steered BRIEF):** Die Pixelpaare werden um den Winkel **θ gedreht**, bevor sie abgelesen werden.
 
 $\begin{pmatrix} x' \\ y' \end{pmatrix} = \begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix} \begin{pmatrix} x \\ y \end{pmatrix}$
 
 - **Ohne Rotation:** Paare in fester Position → verschiedene Bits bei gedrehter Kamera
 - **Mit Rotation um θ:** Paare drehen sich mit → **gleiche Bits** trotz Kameradrehung
 
-Dasselbe Feature ergibt **immer denselben 256-Bit-String** — rotationsinvariant!
+Dasselbe Feature ergibt **immer denselben 256-Bit-String**, rotationsinvariant!
 
 ```{=html}
 <div style="text-align: center; margin: 16px 0;">
@@ -881,11 +881,11 @@ Dasselbe Feature ergibt **immer denselben 256-Bit-String** — rotationsinvarian
 :::
 
 ::: {.vslam-slide}
-#### Schritt 3a: Feature Matching — Hamming-Distanz
+#### Schritt 3a: Feature Matching (Hamming-Distanz)
 
 **Ziel:** Finde dieselbe Ecke in zwei aufeinanderfolgenden Frames.
 
-**Methode — Hamming-Distanz:** Vergleiche zwei 256-Bit-Strings per XOR. Zähle unterschiedliche Bits.
+**Methode (Hamming-Distanz):** Vergleiche zwei 256-Bit-Strings per XOR. Zähle unterschiedliche Bits.
 
 $d_H(A, B) = \text{popcount}(A \oplus B)$
 
@@ -903,11 +903,11 @@ $d_H(A, B) = \text{popcount}(A \oplus B)$
 :::
 
 ::: {.vslam-slide}
-#### Schritt 3b: Feature Matching — Lowe Ratio-Test
+#### Schritt 3b: Feature Matching (Lowe Ratio-Test)
 
 **Problem:** Ähnliche Stellen im Bild (z.B. gleiche Fenstermuster) passen mehrfach → falsche Matches.
 
-**Lösung — Lowe Ratio-Test:**
+**Lösung (Lowe Ratio-Test):**
 1. Finde die **zwei besten Matches** für jede Ecke (Hamming-Distanz $d_1 < d_2$)
 2. Behalte nur wenn: $\dfrac{d_1}{d_2} < 0{,}75$
 
@@ -917,18 +917,18 @@ $d_H(A, B) = \text{popcount}(A \oplus B)$
 - $d_1 = 12$, $d_2 = 80$ → $12/80 = 0{,}15 < 0{,}75$ → **behalten** ✓ (eindeutig)
 - $d_1 = 40$, $d_2 = 45$ → $40/45 = 0{,}89 > 0{,}75$ → **verwerfen** ✗ (zu ähnlich)
 
-**Resultat:** Nur grüne Matches übrig — zuverlässige, eindeutige Korrespondenzen.
+**Resultat:** Nur grüne Matches übrig, zuverlässige, eindeutige Korrespondenzen.
 
 ```{=html}
 <div style="text-align: center; margin: 16px 0;">
   <img src="images/feature_extraction/vo_feature_matching.png" style="width: 100%; max-height: 300px; object-fit: contain; border-radius: 6px;">
 </div>
-<p style="text-align:center; color:#aaa; font-size:0.85em; margin-top:6px;">377 gute Matches zwischen zwei Frames — grüne Linien verbinden dieselbe Ecke</p>
+<p style="text-align:center; color:#aaa; font-size:0.85em; margin-top:6px;">377 gute Matches zwischen zwei Frames, grüne Linien verbinden dieselbe Ecke</p>
 ```
 :::
 
 ::: {.vslam-slide}
-#### Schritt 4a: Pose-Schätzung — Essential Matrix
+#### Schritt 4a: Pose-Schätzung (Essential Matrix)
 
 Aus den gematchten Punktpaaren $(x, x')$ berechnen wir **Rotation R** und **Translation t** der Kamera.
 
@@ -941,15 +941,15 @@ $E = [t]_\times \cdot R$
 Wo $[t]_\times$ die schiefsymmetrische Matrix von $t$ ist.
 
 **Pipeline:**
-1. `findEssentialMat` mit **RANSAC** — berechnet E aus mind. 5 Paaren, markiert Outlier
+1. `findEssentialMat` mit **RANSAC**: berechnet E aus mind. 5 Paaren, markiert Outlier
 2. `recoverPose` zerlegt E per **SVD** in R und t
-3. **Einschränkung:** t hat nur Richtung — bei Mono-Kamera bleibt die echte Strecke unbekannt
+3. **Einschränkung:** t hat nur Richtung; bei Mono-Kamera bleibt die echte Strecke unbekannt
 
 RANSAC = Random Sample Consensus: probiert zufällige Teilmengen, wählt das Modell mit den meisten Inliern.
 :::
 
 ::: {.vslam-slide}
-#### Schritt 4b: Pose-Schätzung — Inlier & Outlier
+#### Schritt 4b: Pose-Schätzung (Inlier & Outlier)
 
 RANSAC unterscheidet:
 - **Inlier:** Punkte, die zur geschätzten Bewegung passen ($x'^T E x \approx 0$)
@@ -963,14 +963,14 @@ RANSAC unterscheidet:
 </div>
 ```
 
-- **Grün** = Inlier (44 Punkte) — passen zur Bewegung ✓
-- **Rot** = Outlier (14 Punkte) — verworfen ✗
+- **Grün** = Inlier (44 Punkte): passen zur Bewegung ✓
+- **Rot** = Outlier (14 Punkte): verworfen ✗
 - Translation zeigt nach **vorne** (Kamera fährt vorwärts)
 - Rotation = fast reines **Gieren** (leichte Rechtsdrehung)
 :::
 
 ::: {.vslam-slide}
-#### Schritt 5: Trajektorie — Akkumulation der Bewegung
+#### Schritt 5: Trajektorie (Akkumulation der Bewegung)
 
 Jedes Frame-Paar liefert nur die **relative** Bewegung ($R$, $t$). Die **Trajektorie** entsteht durch Aufsummieren.
 
@@ -978,7 +978,7 @@ Jedes Frame-Paar liefert nur die **relative** Bewegung ($R$, $t$). Die **Trajekt
 $P_{\text{neu}} = P_{\text{alt}} + R_{\text{global}} \cdot t$
 $R_{\text{global}} = R_{\text{global}} \cdot R$
 
-- $R_{\text{global}}$ dreht das lokale „vorne" in die **Weltrichtung**
+- $R_{\text{global}}$ dreht das lokale „vorne“ in die **Weltrichtung**
 - Start: $P_0 = (0,0,0)$, $R_{\text{global}} = I$
 
 **Konkretes 2D-Beispiel (t immer (1,0)):**
@@ -989,7 +989,7 @@ $R_{\text{global}} = R_{\text{global}} \cdot R$
 | 2 | 90° | $(0, +1)$ | $(1, 1)$ |
 | 3 | 180° | $(-1, 0)$ | $(0, 1)$ |
 
-Lokales „vorne" bleibt gleich — aber die Weltrichtung dreht sich!
+Lokales „vorne“ bleibt gleich, aber die Weltrichtung dreht sich!
 
 ```{=html}
 <div style="text-align: center; margin: 16px 0;">
@@ -1001,7 +1001,7 @@ Lokales „vorne" bleibt gleich — aber die Weltrichtung dreht sich!
 ::: {.vslam-slide}
 #### Zusammenfassung 1.2 & Ausblick
 
-**1.2 Visuelle Odometrie — vollständige Pipeline:**
+**1.2 Visuelle Odometrie (vollständige Pipeline):**
 
 1. **θ (Orientierung):** Helligkeits-Schwerpunkt → rotationsinvariante Richtung
 2. **Deskriptor:** 256 Pixelpaar-Vergleiche → Bit-String (steered BRIEF)
@@ -1046,14 +1046,14 @@ Lokales „vorne" bleibt gleich — aber die Weltrichtung dreht sich!
 ::: {.vslam-slide}
 #### Problemstellung
 Das lokale Mapping ist der Kern des vSLAM Workflow. Der Output der vorherigen Schritte führt jedoch zu folgender Problematik:
-die extrahierten visuellen Features liegen nur in **zwei Dimensionen** (als Pixel auf dem Bildschirm) vor – wir brauchen aber eine **dreidimensionale** Punktewolke der Szene.
+die extrahierten visuellen Features liegen nur in **zwei Dimensionen** (als Pixel auf dem Bildschirm) vor; wir brauchen aber eine **dreidimensionale** Punktewolke der Szene.
 Ziel des Mappings ist es, die 2D-Features ihren korrespondierenden 3D-Positionen im Raum zuzuordnen und so Schritt für Schritt eine konsistente lokale Karte aufzubauen.
 
-Zwei Beobachtungen aus einer einzelnen Kamera reichen dafür im Prinzip aus – wenn man weiß, wie sich die Kamera dazwischen bewegt hat (aus der visuellen Odometrie, Step 1.2). Drei oder mehr Beobachtungen desselben Punktes machen die Schätzung deutlich robuster.
+Zwei Beobachtungen aus einer einzelnen Kamera reichen dafür im Prinzip aus, wenn man weiß, wie sich die Kamera dazwischen bewegt hat (aus der visuellen Odometrie, Step 1.2). Drei oder mehr Beobachtungen desselben Punktes machen die Schätzung deutlich robuster.
 :::
 
 ::: {.vslam-slide}
-#### Pipeline – vom Feature zum Landmark
+#### Pipeline: vom Feature zum Landmark
 
 ```
 Mehrere Keyframes (z.B. 3)
@@ -1064,7 +1064,7 @@ Mehrere Keyframes (z.B. 3)
     → 5. Lokale 3D-Karte                    (Landmarks + Kamera-Posen)
 ```
 
-**Tracks** sind die zentrale Datenstruktur: ein Feature, das in Frame 0, 1 und 2 wiedergefunden wird, gehört zu **einem einzigen 3D-Punkt** – einem Landmark.
+**Tracks** sind die zentrale Datenstruktur: ein Feature, das in Frame 0, 1 und 2 wiedergefunden wird, gehört zu **einem einzigen 3D-Punkt**, einem Landmark.
 
 ```{=html}
 <div style="text-align: center;">
@@ -1077,9 +1077,9 @@ Mehrere Keyframes (z.B. 3)
 ::: {.vslam-slide}
 #### Pose-Schätzung: Perspective-n-Point (PnP)
 
-Für Kamera 0 und 1 liefert die **Essential Matrix** (Step 1.2) die erste Relativpose – rein aus 2D–2D-Korrespondenzen, ganz ohne 3D-Wissen. Sobald aus diesem ersten Paar aber 3D-Landmarks trianguliert sind, steht für alle weiteren Keyframes eine stärkere Informationsquelle zur Verfügung: **bekannte 3D-Punkte + ihre 2D-Beobachtung** im neuen Bild.
+Für Kamera 0 und 1 liefert die **Essential Matrix** (Step 1.2) die erste Relativpose, rein aus 2D-2D-Korrespondenzen, ganz ohne 3D-Wissen. Sobald aus diesem ersten Paar aber 3D-Landmarks trianguliert sind, steht für alle weiteren Keyframes eine stärkere Informationsquelle zur Verfügung: **bekannte 3D-Punkte + ihre 2D-Beobachtung** im neuen Bild.
 
-**PnP-Problem:** Gegeben $n$ Korrespondenzen zwischen 3D-Punkten $X_j$ und ihren 2D-Projektionen $x_j$ im Kamerabild sowie die bekannte Kalibrierung $K$ — gesucht sind $R$ und $t$, sodass
+**PnP-Problem:** Gegeben $n$ Korrespondenzen zwischen 3D-Punkten $X_j$ und ihren 2D-Projektionen $x_j$ im Kamerabild sowie die bekannte Kalibrierung $K$; gesucht sind $R$ und $t$, sodass
 
 $$
 x_j \;\sim\; K\,(R\,X_j + t) \quad \text{für alle } j
@@ -1087,11 +1087,11 @@ $$
 
 **Minimale Lösung:** 3 Korrespondenzen reichen theoretisch (**P3P**), üblich ist eine lineare Lösung ab 4 Punkten (**EPnP**) mit anschließender nichtlinearer Verfeinerung.
 
-**Im Notebook:** `cv2.solvePnPRansac` — RANSAC über zufällige Minimal-Stichproben verwirft Ausreißer-Tracks, danach iterative Verfeinerung über alle Inlier. Kamera $k$ wird so direkt gegen die bereits vorhandenen Landmarks aus Kamera 0/1 registriert, unabhängig von den übrigen Keyframes.
+**Im Notebook:** `cv2.solvePnPRansac`: RANSAC über zufällige Minimal-Stichproben verwirft Ausreißer-Tracks, danach iterative Verfeinerung über alle Inlier. Kamera $k$ wird so direkt gegen die bereits vorhandenen Landmarks aus Kamera 0/1 registriert, unabhängig von den übrigen Keyframes.
 :::
 
 ::: {.vslam-slide}
-#### PnP vs. Essential Matrix — kurzer Vergleich
+#### PnP vs. Essential Matrix: kurzer Vergleich
 
 Beide Verfahren schätzen $(R, t)$ einer Kamera, unterscheiden sich aber in Eingabedaten und Einsatzpunkt:
 
@@ -1100,14 +1100,14 @@ Beide Verfahren schätzen $(R, t)$ einer Kamera, unterscheiden sich aber in Eing
 | Eingabe | 2D ↔ 2D (zwei Bilder) | 2D ↔ 3D (Bild + Landmark) |
 | Mindestpunkte | 5 (Nister-Verfahren) | 3 (P3P) / 4 (EPnP) |
 | Benötigt 3D-Punkte? | Nein | Ja |
-| Maßstab | unbekannt (nur Richtung von $t$) | geerbt von den 3D-Punkten — konsistent zur fixierten Skala |
+| Maßstab | unbekannt (nur Richtung von $t$) | geerbt von den 3D-Punkten, konsistent zur fixierten Skala |
 | Einsatz in der Pipeline | einmalig, erstes Keyframe-Paar (Kamera 0 → 1) | jedes weitere Keyframe (Kamera 2, 3, …) |
 
-**Kernidee:** Die Essential Matrix „bootstrapt" die Karte, ohne dass 3D-Punkte existieren. Sobald ein erstes 3D-Grundgerüst steht, ist PnP das direktere Werkzeug — weniger Mindestkorrespondenzen, kein erneuter Skalenverlust, und pro Kamera unabhängig lösbar.
+**Kernidee:** Die Essential Matrix „bootstrapt“ die Karte, ohne dass 3D-Punkte existieren. Sobald ein erstes 3D-Grundgerüst steht, ist PnP das direktere Werkzeug: weniger Mindestkorrespondenzen, kein erneuter Skalenverlust, und pro Kamera unabhängig lösbar.
 :::
 
 ::: {.vslam-slide}
-#### Mathematik – Triangulation (DLT)
+#### Mathematik: Triangulation (DLT)
 Sobald Rotation $R_i$ und Translation $t_i$ einer Kamera aus der Pose Estimation bekannt sind, lässt sich
 die 3D-Position $X$ eines Landmarks bestimmen. Für jede Beobachtung $x_i = (u, v)$ in Keyframe $i$ mit Projektionsmatrix $P_i = K\,[R_i \mid t_i]$ gilt:
 
@@ -1125,7 +1125,7 @@ v \cdot P_i^{(3)}\,X &= P_i^{(2)}\,X
 $$
 
 Mit $N$ Beobachtungen entsteht ein $2N \times 4$-Gleichungssystem $A\,X = 0$.
-Die Lösung ist der rechte Singulärvektor von $A$ zum kleinsten Singulärwert – das ist die **Direct Linear Transform (DLT)**.
+Die Lösung ist der rechte Singulärvektor von $A$ zum kleinsten Singulärwert, das ist die **Direct Linear Transform (DLT)**.
 
 ```{=html}
 <div style="text-align: center;">
@@ -1136,7 +1136,7 @@ Die Lösung ist der rechte Singulärvektor von $A$ zum kleinsten Singulärwert �
 :::
 
 ::: {.vslam-slide}
-#### Beispiel – lokale Karte aus 3 Keyframes unseres Datensatzes
+#### Beispiel: lokale Karte aus 3 Keyframes unseres Datensatzes
 
 Wir nehmen drei Keyframes aus dem TUM-Datensatz mit einigen Frames Abstand, extrahieren ihre Features, triangulieren die Tracks und erhalten eine **lokale 3D-Punktwolke** zusammen mit den drei Kamera-Positionen.
 
@@ -1147,7 +1147,7 @@ Wir nehmen drei Keyframes aus dem TUM-Datensatz mit einigen Frames Abstand, extr
 </div>
 ```
 
-Jede Farbe markiert die Punkte, die ein bestimmter Keyframe beigetragen hat – durch die Überlappung entstehen redundante Beobachtungen, die in der Optimierung (Step 2.2) gemeinsam ausgewertet werden.
+Jede Farbe markiert die Punkte, die ein bestimmter Keyframe beigetragen hat; durch die Überlappung entstehen redundante Beobachtungen, die in der Optimierung (Step 2.2) gemeinsam ausgewertet werden.
 :::
 
 ::: {.vslam-slide}
@@ -1165,7 +1165,7 @@ Vor lokaler Optimierung ist der Reproduktionsfehler immer noch signifikant:
 </div>
 ```
 
-Beides motiviert direkt den nächsten Schritt – die **lokale Optimierung (Step 2.2)**: alle Posen + Punkte werden gemeinsam so verschoben, dass die gesamten Reprojektionsfehler minimal werden.
+Beides motiviert direkt den nächsten Schritt, die **lokale Optimierung (Step 2.2)**: alle Posen + Punkte werden gemeinsam so verschoben, dass die gesamten Reprojektionsfehler minimal werden.
 :::
 
 :::
@@ -1188,7 +1188,7 @@ Beides motiviert direkt den nächsten Schritt – die **lokale Optimierung (Step
 
 ::: {.vslam-slide}
 #### Problemstellung
-Nach dem lokalen Mapping haben wir **3D-Landmarks** und **Kamera-Posen** – aber beide sind unabhängig voneinander aus paarweisen Schätzungen entstanden. Daraus resultieren systematische Inkonsistenzen:
+Nach dem lokalen Mapping haben wir **3D-Landmarks** und **Kamera-Posen**, aber beide sind unabhängig voneinander aus paarweisen Schätzungen entstanden. Daraus resultieren systematische Inkonsistenzen:
 
 - Pixel-Rauschen in der Feature-Detektion (∼0.5 px)
 - Ungenaue Kamera-Kalibrierung (geschätztes $K$)
@@ -1198,14 +1198,14 @@ Das Ziel der lokalen Optimierung ist es, diese Inkonsistenzen gemeinsam zu glät
 :::
 
 ::: {.vslam-slide}
-#### Reprojektionsfehler – der Optimierungs-Anker
+#### Reprojektionsfehler: der Optimierungs-Anker
 Der Reprojektionsfehler misst, **wie gut** Pose und 3D-Punkt zusammenpassen. Wenn alles perfekt wäre, würde die Projektion des 3D-Punkts $X_j$ durch Kamera $i$ genau auf der beobachteten Pixel-Position $x_{ij}$ landen:
 
 $$
 r_{ij} \;=\; x_{ij} \;-\; \pi\!\big(K\,(R_i X_j + t_i)\big)
 $$
 
-In der Praxis bleibt immer ein Restfehler – dieser wird durch Bundle Adjustment simultan minimiert.
+In der Praxis bleibt immer ein Restfehler; dieser wird durch Bundle Adjustment simultan minimiert.
 
 ```{=html}
 <div style="text-align: center;">
@@ -1230,7 +1230,7 @@ In einer großen Map wäre es aufgrund komplexem Rechenaufwand ineffizient, alle
 :::
 
 ::: {.vslam-slide}
-#### Mathematik – Bundle Adjustment
+#### Mathematik: Bundle Adjustment
 Die lokale Optimierung minimiert den Reprojektionsfehler über alle Keyframe-Posen $T_i = (R_i, t_i)$ und 3D-Punkte $X_j$, die im Konvisibilitätsgraphen verbunden sind:
 
 $$
@@ -1239,9 +1239,9 @@ $$
 
 Mit:
 
-- $\pi(\cdot)$ – Projektionsfunktion (Division durch die Tiefe)
-- $x_{ij}$ – beobachtete Pixelposition von Punkt $j$ in Frame $i$
-- $\rho(\cdot)$ – robuste Loss-Funktion gegen Outlier (siehe unten)
+- $\pi(\cdot)$: Projektionsfunktion (Division durch die Tiefe)
+- $x_{ij}$: beobachtete Pixelposition von Punkt $j$ in Frame $i$
+- $\rho(\cdot)$: robuste Loss-Funktion gegen Outlier (siehe unten)
 
 Eine Kamera-Pose wird typischerweise als $T_0 = (I, \mathbf{0})$ **fixiert**, damit das Problem überhaupt eine eindeutige Lösung hat. Gelöst wird das nichtlineare Least-Squares-Problem mit **Levenberg-Marquardt** (oder verwandten Trust-Region-Verfahren wie in g2o/Ceres).
 
@@ -1251,14 +1251,14 @@ $$
 \rho(r) = \begin{cases} r^2 & |r| \le \delta \\ 2\delta\,|r| - \delta^2 & |r| > \delta \end{cases}
 $$
 
-Quadratisch nahe null, linear für große Residuen – so dominieren einzelne Ausreißer nicht das gesamte Optimum (sonst kann BA Punkte mit hohem Restfehler auf absurde Positionen verschieben, um den L2-Fehler künstlich klein zu rechnen).
+Quadratisch nahe null, linear für große Residuen; so dominieren einzelne Ausreißer nicht das gesamte Optimum (sonst kann BA Punkte mit hohem Restfehler auf absurde Positionen verschieben, um den L2-Fehler künstlich klein zu rechnen).
 :::
 
 ::: {.vslam-slide}
 #### Robustheits-Pipeline
-Reines BA reicht in der Praxis nicht – ein paar Outlier oder schlecht triangulierte Punkte können das Ergebnis verschlechtern. Im Notebook nutzen wir deshalb folgende Pipeline:
+Reines BA reicht in der Praxis nicht; ein paar Outlier oder schlecht triangulierte Punkte können das Ergebnis verschlechtern. Im Notebook nutzen wir deshalb folgende Pipeline:
 
-1. **Parallaxe-Filter vor BA**: Punkte mit < 1° Sichtwinkel zwischen den Kameras verwerfen – ihre Tiefe wäre nicht beobachtbar und sie würden gegen unendlich driften.
+1. **Parallaxe-Filter vor BA**: Punkte mit < 1° Sichtwinkel zwischen den Kameras verwerfen; ihre Tiefe wäre nicht beobachtbar und sie würden gegen unendlich driften.
 2. **Huber-Loss** im BA: einzelne Ausreißer dominieren nicht das Optimum.
 3. **Outlier-Pruning + Re-BA**: nach dem ersten Lauf Punkte mit Reproj-Fehler über einer Schwelle (z.B. 2 px) entfernen, dann BA erneut auf der bereinigten Karte laufen lassen.
 
@@ -1266,7 +1266,7 @@ Diese Schritte sind Standard in SLAM-Systemen (ORB-SLAM etc.).
 :::
 
 ::: {.vslam-slide}
-#### Beispiel – Bundle Adjustment auf unseren Keyframes
+#### Beispiel: Bundle Adjustment auf unseren Keyframes
 
 Wir nehmen die 3D-Punkte aus den drei Keyframes, fügen synthetisches Rauschen auf die Initialposen und Punktpositionen hinzu (simuliert die typische VO-Drift) und lassen BA optimieren:
 
@@ -1284,7 +1284,7 @@ Wir nehmen die 3D-Punkte aus den drei Keyframes, fügen synthetisches Rauschen a
 </div>
 ```
 
-Das BA reduziert den mittleren Reprojektionsfehler auf nahezu null und richtet die 3D-Punkte konsistent zu den Kamera-Posen aus – die Voraussetzung für den nächsten Schritt: das **globale Mapping mit Loop Closure** (Step 3.1).
+Das BA reduziert den mittleren Reprojektionsfehler auf nahezu null und richtet die 3D-Punkte konsistent zu den Kamera-Posen aus, die Voraussetzung für den nächsten Schritt: das **globale Mapping mit Loop Closure** (Step 3.1).
 :::
 
 :::
@@ -1308,27 +1308,27 @@ Das BA reduziert den mittleren Reprojektionsfehler auf nahezu null und richtet d
 ::: {.vslam-slide}
 #### Das Drift-Problem & Loop-Closure-Prinzip
 Visuelle Odometrie (1.2) schätzt die Kamera-Bewegung Frame für Frame.
-Jede Schätzung hat einen kleinen Fehler — doch **Fehler akkumulieren sich:**
+Jede Schätzung hat einen kleinen Fehler, doch **Fehler akkumulieren sich:**
 auf unserem ~350-KeyFrame-Datensatz beträgt der Drift am Ende **mehrere Meter.**
 
 **Loop Closure** erkennt, wann die Kamera an einen bereits besuchten Ort
 zurückkehrt: Zwei KeyFrames, die **nah im Raum** aber **weit in der Zeit**
-auseinanderliegen, zeigen denselben Ort — ein **Loop**.
+auseinanderliegen, zeigen denselben Ort, ein **Loop**.
 
 Die vier Schritte der Loop-Closure-Detektion:
 
-1. **Räumliche Kandidaten** — Paare mit Distanz < 1.5 m & Δt > 20 Frames
-2. **Bag of Visual Words** — Vokabular aus 3D-Merkmalen, χ²-Ähnlichkeit
-3. **Kombiniertes Scoring** — BoW-Ähnlichkeit × räumliche Nähe
-4. **Geometrische Verifikation** — 3D-Punktwolken-Überlappung prüfen
+1. **Räumliche Kandidaten**: Paare mit Distanz < 1.5 m & Δt > 20 Frames
+2. **Bag of Visual Words**: Vokabular aus 3D-Merkmalen, χ²-Ähnlichkeit
+3. **Kombiniertes Scoring**: BoW-Ähnlichkeit × räumliche Nähe
+4. **Geometrische Verifikation**: 3D-Punktwolken-Überlappung prüfen
 
-Nur Kandidaten, die alle vier Schritte bestehen, werden Loop-Closure-Kanten —
+Nur Kandidaten, die alle vier Schritte bestehen, werden Loop-Closure-Kanten,
 die Constraints für die globale Optimierung in 3.2.
 :::
 
 ::: {.vslam-slide}
 #### Schritt 1: Räumliche Loop-Kandidaten
-**Distanzmatrix** aller KeyFrame-Positionen — nah im Raum, weit in der Zeit:
+**Distanzmatrix** aller KeyFrame-Positionen, nah im Raum, weit in der Zeit:
 
 - Distanzschwelle: $< 1.5\,\text{m}$
 - Temporaler Mindestabstand: $\Delta t > 20$ KeyFrames
@@ -1341,14 +1341,14 @@ die Constraints für die globale Optimierung in 3.2.
 
 Aus ~349 Frames → **236 rohe Paare** → **Non-Maximum Suppression** reduziert
 auf **84 Kandidaten** (einer pro zeitlichem Cluster). Der Filter ist bewusst
-liberal — lieber zu viele als echte Loops zu verpassen; das teure BoW- und
+liberal, lieber zu viele als echte Loops zu verpassen; das teure BoW- und
 Geometrie-Scoring trennt anschließend die echten Loops heraus.
 :::
 
 ::: {.vslam-slide}
 #### Schritt 2: Bag of Visual Words
 **Place Recognition:** Jeder KeyFrame wird als Histogramm visueller Wörter
-beschrieben — ähnliche Frames haben ähnliche Histogramme.
+beschrieben; ähnliche Frames haben ähnliche Histogramme.
 
 1. **Vokabular lernen:** k-Means++ über 3D-Punktmerkmale → $K=50$ Zentren
 2. **Frame-Vektor:** BoW-Histogramm $v \in \mathbb{R}^{50}$ (normiert)
@@ -1365,7 +1365,7 @@ $$
 </div>
 ```
 
-Die hellen Diagonalstreifen zeigen Frames mit hoher visueller Ähnlichkeit —
+Die hellen Diagonalstreifen zeigen Frames mit hoher visueller Ähnlichkeit;
 genau dort liegen potenzielle Loops.
 :::
 
@@ -1384,7 +1384,7 @@ $$\text{Score}_{ij} = \text{BoW-Ähnlichkeit}_{ij} \;\times\; \frac{1}{D_{ij}^{\
 </div>
 ```
 
-Die roten Linien zeigen die Top-8 Kandidaten — alle liegen an Stellen,
+Die roten Linien zeigen die Top-8 Kandidaten; alle liegen an Stellen,
 an denen die Kamera dieselbe Parkhausrunde ein zweites Mal durchfährt.
 BoW allein kann falsch-positive liefern (ähnliche Struktur an anderem Ort);
 die räumliche Nähe eliminiert diese.
@@ -1409,7 +1409,7 @@ Wie viele 3D-Punkte beider Frames liegen in derselben Weltregion?
 
 Alle **8 von 8** Kandidaten bestehen die geometrische Prüfung (Ratios 28–53 %).
 Das zeigt: Die Vorfilterung aus räumlicher Nähe **und** BoW-Ähnlichkeit ist bereits
-so selektiv, dass kaum Falsch-Positive durchkommen — die geometrische Verifikation
+so selektiv, dass kaum Falsch-Positive durchkommen; die geometrische Verifikation
 **bestätigt** die Loops und ist die letzte Absicherung gegen verzerrende Kanten.
 :::
 
@@ -1422,11 +1422,11 @@ Aufnahmen, die Kamera kehrt auf **0.06 m** genau an dieselbe Position zurück.
 <div style="display: flex; gap: 16px; justify-content: center; align-items: start; margin: 8px 0;">
   <div style="text-align: center;">
     <img src="images/loop_frames/frame_kf255.png" style="width: 100%; max-width: 350px;">
-    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 255 — frühere Aufnahme</div>
+    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 255: frühere Aufnahme</div>
   </div>
   <div style="text-align: center;">
     <img src="images/loop_frames/frame_kf294.png" style="width: 100%; max-width: 350px;">
-    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 294 — spätere Aufnahme</div>
+    <div style="font-size: 0.8em; color: #aaa; margin-top: 2px;">KF 294: spätere Aufnahme</div>
   </div>
 </div>
 ```
@@ -1463,7 +1463,7 @@ in die Pose-Graph-Optimierung (3.2) ein.
 ::: {.vslam-slide}
 #### Lokale vs. globale Konsistenz
 Das lokale Bundle Adjustment (2.2) sorgt für eine konsistente Karte
-im unmittelbaren Sichtfeld der Kamera — aber es sieht nicht das große Ganze.
+im unmittelbaren Sichtfeld der Kamera, aber es sieht nicht das große Ganze.
 
 - **Lokal:** Im Fenster von ~10 KeyFrames ist der Drift kaum sichtbar. Das BA
   minimiert den Reprojektionsfehler und hält die relative Geometrie konsistent.
@@ -1487,7 +1487,7 @@ Die Trajektorie wird als **Graph** mit zwei Arten von Kanten modelliert:
   $\tilde{T}_{ij}^{\text{loop}} \approx I_{4\times4}$.
 
 Der Pose-Graph ist von Natur aus **dünn besetzt (sparse):** Nur $\approx n$
-Odometrie-Kanten plus wenige Loop-Kanten — nicht $n^2$ wie ein voller Graph.
+Odometrie-Kanten plus wenige Loop-Kanten, nicht $n^2$ wie ein voller Graph.
 Das macht die Optimierung effizient.
 :::
 
@@ -1504,7 +1504,7 @@ $$
 - $\tilde{T}_{ij}$: Gemessene Relativbewegung (aus Odometrie oder Loop-Detektion)
 - $T_i, T_j$: Die (unbekannten) Welt-Posen der Frames $i$ und $j$
 - $\log(\cdot)^{\vee}$: Logarithmic Map von $SE(3)$ nach $\mathfrak{se}(3) \cong \mathbb{R}^6$
-- Ergebnis: Ein 6D-Vektor — 3 Dimensionen Translation, 3 Dimensionen Rotation
+- Ergebnis: Ein 6D-Vektor, 3 Dimensionen Translation, 3 Dimensionen Rotation
 
 ```{=html}
 <div style="text-align: center; margin-top: 10px;">
@@ -1538,15 +1538,15 @@ $$
 
 mit $T_0 = (I, \mathbf{0})$ als fixiertem Anker (Eichfreiheit).
 
-- **Odometrie-Term:** Hält die Frame-zu-Frame-Relationen — die lokale Form
+- **Odometrie-Term:** Hält die Frame-zu-Frame-Relationen, die lokale Form
   der Trajektorie bleibt erhalten.
-- **Loop-Term:** Erzwingt räumliche Nähe zwischen Loop-Paaren — der globale
+- **Loop-Term:** Erzwingt räumliche Nähe zwischen Loop-Paaren, der globale
   Drift wird korrigiert. Gewichtet mit $W_{\text{loop}} \approx 20$.
 - **Anker $T_0$:** Fixiert den ersten Frame. Ohne Anker wäre das System
   translationsinvariant und hätte unendlich viele Lösungen.
 
 Das Problem ist **nichtlinear in den Rotationen**, aber **linear in den
-Translationen** — daher kann es für die Translation direkt als lineares
+Translationen**, daher kann es für die Translation direkt als lineares
 Least-Squares-Problem gelöst werden.
 :::
 
@@ -1562,12 +1562,12 @@ Das simuliert den zufälligen Schätzfehler der visuellen Odometrie.
 
 **Systematischer Bias (über die gesamte Trajektorie):**
 - Scheinbare Höhenveränderung: +5.0 m linear über alle Frames
-- Scheinbare seitliche Drift: −3.0 m linear über alle Frames
+- Scheinbare seitliche Drift: -3.0 m linear über alle Frames
 
 Das simuliert Sensor-Bias, wie er in realen IMUs auftritt.
 
 **Ergebnis:** Die verrauschte Trajektorie weicht am Ende um mehrere Meter
-von der Ground Truth ab — ein realistisches Szenario für PGO.
+von der Ground Truth ab, ein realistisches Szenario für PGO.
 :::
 
 ::: {.vslam-slide}
@@ -1595,7 +1595,7 @@ via **sparse Cholesky-Zerlegung** (`scipy.sparse.linalg.spsolve`).
 ::: {.vslam-slide}
 #### Ergebnis Teil 1: Trajektorie vorher/nachher
 Das PGO-Diagramm zeigt die Korrektur in Aktion. **Oben links:** die verrauschte
-Trajektorie (rot) — Loops klaffen auseinander. **Oben Mitte:** nach der PGO (grün)
+Trajektorie (rot); Loops klaffen auseinander. **Oben Mitte:** nach der PGO (grün)
 sind die Loops geschlossen.
 
 ```{=html}
@@ -1608,7 +1608,7 @@ sind die Loops geschlossen.
 
 **Was die orangenen Pfeile bedeuten:** Jeder Pfeil ist ein Korrekturvektor
 $\Delta p_i = p_i^{\text{opt}} - p_i^{\text{noisy}}$. Lange Pfeile zeigen
-Posen, die stark vom akkumulierten Drift betroffen waren — typischerweise
+Posen, die stark vom akkumulierten Drift betroffen waren, typischerweise
 die späteren Frames. Die PGO verteilt die Korrektur gleichmäßig, statt
 nur die Enden der Loops zu fixieren.
 :::
@@ -1642,7 +1642,7 @@ Das Diagramm zeigt auch die quantitative Verbesserung:
 
 **Oben rechts im Diagramm:** Der Fehlerverlauf über alle KeyFrames. Die rote
 Kurve (vor PGO) wächst kontinuierlich an. Die grüne Kurve (nach PGO) bleibt
-flach und niedrig. Die gelben vertikalen Linien markieren die Loop-Stellen —
+flach und niedrig. Die gelben vertikalen Linien markieren die Loop-Stellen;
 nach jeder Loop-Kante fällt der Fehler sprunghaft ab.
 
 **Unten:** Das Kantenfehler-Histogramm zeigt, dass die PGO nicht nur die
@@ -1672,12 +1672,12 @@ Jede Stufe reduziert den Fehler weiter:
       <span style="color:#2ecc71;">Loop Closure + PGO</span>
     </div>
     <div style="margin-top: 4px; font-size: 0.72em; color: #888;">
-      Jede Stufe verfeinert die Schätzung — PGO bringt den größten Sprung</div>
+      Jede Stufe verfeinert die Schätzung; PGO bringt den größten Sprung</div>
   </div>
 </div>
 ```
 
-**Optional — Full Bundle Adjustment:** In ORB-SLAM3 folgt nach erfolgreichem
+**Optional (Full Bundle Adjustment):** In ORB-SLAM3 folgt nach erfolgreichem
 Loop Closure ein finales Full BA über alle Posen und 3D-Landmarks. Deutlich
 teurer ($O((m+n)^3)$), aber bestmögliche globale Konsistenz. In der Praxis
 nur nach erfolgreichem Loop Closure ausgeführt.
