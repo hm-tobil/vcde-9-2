@@ -3,7 +3,11 @@ title: "vSLAM – Virtual Simultaneous Localization and Mapping"
 author: "Gruppe 9-2 (Tobias, Kilian, Nediljko)"
 format:
   html:
-    theme: cosmo
+    theme: flatly
+    toc: true
+    toc-title: "Gliederung"
+    toc-depth: 2
+    smooth-scroll: true
 jupyter: python3
 bibliography: references.bib
 ---
@@ -14,13 +18,31 @@ bibliography: references.bib
      <div class="vslam-slider"> ... </div> weiter unten im Dokument.
      ===================================================================== -->
 <style>
+  /* Gemeinsame Flat-UI-Palette für die ganze Seite (Bootswatch "flatly"
+     verwendet dieselben Farben, dadurch wirken native Elemente wie
+     Überschriften, Links und Tabellen konsistent zu den Slidern). */
+  :root {
+    --vslam-navy: #2c3e50;
+    --vslam-blue: #3498db;
+    --vslam-blue-dark: #2980b9;
+  }
+
+  h1, h2, h3 { color: var(--vslam-navy); }
+  h2 {
+    border-bottom: 3px solid var(--vslam-blue);
+    padding-bottom: .35rem;
+    margin-top: 2.75rem;
+  }
+  a { color: var(--vslam-blue-dark); }
+  a:hover { color: var(--vslam-navy); }
+
   .vslam-slider {
     border: 1px solid #e3e3e3;
     border-radius: 12px;
     padding: 1.25rem 1.5rem 1rem 1.5rem;
     margin: 1.5rem 0 2rem 0;
-    background: #fafafa;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    background: #fafbfc;
+    box-shadow: 0 1px 4px rgba(44,62,80,.06);
     display: flex;
     flex-direction: column;
   }
@@ -33,8 +55,8 @@ bibliography: references.bib
   }
   .vslam-slider .vslam-slide h4 {
     margin-top: 0;
-    color: #2c3e50;
-    border-bottom: 2px solid #3498db;
+    color: var(--vslam-navy);
+    border-bottom: 2px solid var(--vslam-blue);
     padding-bottom: .35rem;
   }
   .vslam-slider .vslam-slide figure { margin: 0.5rem 0; }
@@ -47,17 +69,20 @@ bibliography: references.bib
     border-top: 1px solid #e8ecef;
   }
   .vslam-slider .vslam-btn {
-    background: #2c3e50; color: #fff; border: none;
+    background: var(--vslam-navy); color: #fff; border: none;
     border-radius: 6px; padding: .35rem .9rem;
     cursor: pointer; font-size: .9rem;
+    transition: background .15s ease;
   }
+  .vslam-slider .vslam-btn:hover:not(:disabled) { background: var(--vslam-blue-dark); }
   .vslam-slider .vslam-btn:disabled { background: #b0b8c1; cursor: not-allowed; }
   .vslam-slider .vslam-dots { display: flex; gap: .4rem; }
   .vslam-slider .vslam-dot {
     width: 9px; height: 9px; border-radius: 50%;
     background: #cfd6dd; cursor: pointer; transition: background .2s;
   }
-  .vslam-slider .vslam-dot.active { background: #3498db; }
+  .vslam-slider .vslam-dot:hover { background: var(--vslam-blue); }
+  .vslam-slider .vslam-dot.active { background: var(--vslam-blue); }
   .vslam-slider .vslam-counter { font-size: .85rem; color: #6c757d; }
 </style>
 
