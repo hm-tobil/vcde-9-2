@@ -1075,6 +1075,38 @@ Mehrere Keyframes (z.B. 3)
 :::
 
 ::: {.vslam-slide}
+#### Pose-Schätzung: Perspective-n-Point (PnP)
+
+Für Kamera 0 und 1 liefert die **Essential Matrix** (Step 1.2) die erste Relativpose – rein aus 2D–2D-Korrespondenzen, ganz ohne 3D-Wissen. Sobald aus diesem ersten Paar aber 3D-Landmarks trianguliert sind, steht für alle weiteren Keyframes eine stärkere Informationsquelle zur Verfügung: **bekannte 3D-Punkte + ihre 2D-Beobachtung** im neuen Bild.
+
+**PnP-Problem:** Gegeben $n$ Korrespondenzen zwischen 3D-Punkten $X_j$ und ihren 2D-Projektionen $x_j$ im Kamerabild sowie die bekannte Kalibrierung $K$ — gesucht sind $R$ und $t$, sodass
+
+$$
+x_j \;\sim\; K\,(R\,X_j + t) \quad \text{für alle } j
+$$
+
+**Minimale Lösung:** 3 Korrespondenzen reichen theoretisch (**P3P**), üblich ist eine lineare Lösung ab 4 Punkten (**EPnP**) mit anschließender nichtlinearer Verfeinerung.
+
+**Im Notebook:** `cv2.solvePnPRansac` — RANSAC über zufällige Minimal-Stichproben verwirft Ausreißer-Tracks, danach iterative Verfeinerung über alle Inlier. Kamera $k$ wird so direkt gegen die bereits vorhandenen Landmarks aus Kamera 0/1 registriert, unabhängig von den übrigen Keyframes.
+:::
+
+::: {.vslam-slide}
+#### PnP vs. Essential Matrix — kurzer Vergleich
+
+Beide Verfahren schätzen $(R, t)$ einer Kamera, unterscheiden sich aber in Eingabedaten und Einsatzpunkt:
+
+| | **Essential Matrix** | **PnP** |
+|---|---|---|
+| Eingabe | 2D ↔ 2D (zwei Bilder) | 2D ↔ 3D (Bild + Landmark) |
+| Mindestpunkte | 5 (Nister-Verfahren) | 3 (P3P) / 4 (EPnP) |
+| Benötigt 3D-Punkte? | Nein | Ja |
+| Maßstab | unbekannt (nur Richtung von $t$) | geerbt von den 3D-Punkten — konsistent zur fixierten Skala |
+| Einsatz in der Pipeline | einmalig, erstes Keyframe-Paar (Kamera 0 → 1) | jedes weitere Keyframe (Kamera 2, 3, …) |
+
+**Kernidee:** Die Essential Matrix „bootstrapt" die Karte, ohne dass 3D-Punkte existieren. Sobald ein erstes 3D-Grundgerüst steht, ist PnP das direktere Werkzeug — weniger Mindestkorrespondenzen, kein erneuter Skalenverlust, und pro Kamera unabhängig lösbar.
+:::
+
+::: {.vslam-slide}
 #### Mathematik – Triangulation (DLT)
 Sobald Rotation $R_i$ und Translation $t_i$ einer Kamera aus der Pose Estimation bekannt sind, lässt sich
 die 3D-Position $X$ eines Landmarks bestimmen. Für jede Beobachtung $x_i = (u, v)$ in Keyframe $i$ mit Projektionsmatrix $P_i = K\,[R_i \mid t_i]$ gilt:
@@ -1123,7 +1155,7 @@ Jede Farbe markiert die Punkte, die ein bestimmter Keyframe beigetragen hat – 
 Reine Triangulation hat zwei bekannte Schwachstellen:
 
 - **Schmale Baseline / Stillstand**: Stehen die Kameras zu nahe beieinander, sind die Sehstrahlen fast parallel und die Tiefe wird extrem unsicher (kleinste Pixel-Fehler werden zu riesigen 3D-Fehlern).
-- **Mono-Skalenmehrdeutigkeit**: Eine einzelne Kamera kann **Maßstab** nicht beobachten. Wir fixieren ihn willkürlich (z.B. $\|t_1\| = 1$), alle weiteren Posen müssen konsistent dazu bestimmt werden (im Notebook: per PnP gegen die existierenden 3D-Punkte).
+- **Mono-Skalenmehrdeutigkeit**: Eine einzelne Kamera kann **Maßstab** nicht beobachten. Wir fixieren ihn willkürlich (z.B. $\|t_1\| = 1$); da PnP die Skala der bestehenden Landmarks erbt, bleiben alle weiteren Posen automatisch konsistent dazu.
 
 Vor lokaler Optimierung ist der Reproduktionsfehler immer noch signifikant:
 ```{=html}
