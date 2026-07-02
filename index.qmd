@@ -1725,12 +1725,14 @@ nur nach erfolgreichem Loop Closure ausgeführt.
 
 ### Feature Extraction
 <details markdown="1">
-<summary><b>Vollständige Implementierung anzeigen (11_feature_extraction.qmd)</b></summary>
+<summary><b>Vollständige Implementierung anzeigen</b></summary>
 
 ```python
 
 """
-Feature Extraction — Logik (ohne Plots)
+Feature Extraction — wiederverwendbare Implementierung (Allgemeinfall)
+
+Funktioniert mit jedem beliebigen Bild (Farbe oder Graustufen).
 
 Pipeline (Kapitel 1.1):
   1. Graustufen + Gauss-Filter (entrauschtes 1-Kanal-Bild)
@@ -1743,70 +1745,12 @@ Pipeline (Kapitel 1.1):
 
 import cv2
 import numpy as np
-import glob
 
-# ──────────────────────────────────────────────
-# Konfiguration
-# ──────────────────────────────────────────────
-BILD_ORDNER    = "../cam0"
-SKALA          = 1.2    # Skalierungsfaktor der Pyramide
-N_STUFEN       = 8      # Pyramidenstufen
-FAST_THRESHOLD = 15     # Schwellenwert t des FAST-Detektors
-GRID_NX, GRID_NY = 15, 8  # Quadtree-Gitter
-N_TOP          = 40     # finale Anzahl Keypoints (Top-Harris)
 
-# ──────────────────────────────────────────────
-# Schritt 1: Graustufen + Gauss-Filter
-# ──────────────────────────────────────────────
-bildpfade = sorted(glob.glob(f"{BILD_ORDNER}/*.png"))
-bild_bgr  = cv2.imread(bildpfade[0])
-
-# RGB → Graustufen: I = 0.299·R + 0.587·G + 0.114·B (macht cv2 intern)
-grau = cv2.cvtColor(bild_bgr, cv2.COLOR_BGR2GRAY)
-
-# 5×5 Gauss-Kernel, σ=1: glättet Rauschen, erhält echte Kanten
-geglättet = cv2.GaussianBlur(grau, (5, 5), 1)
-
-H, W = geglättet.shape
-print(f"Bildgröße: {W} x {H} Pixel")
-
-# ──────────────────────────────────────────────
-# Schritt 2+3: Bildpyramide + FAST auf allen Stufen
-# ──────────────────────────────────────────────
-fast = cv2.FastFeatureDetector_create(threshold=FAST_THRESHOLD,
-                                      nonmaxSuppression=True)
-
-alle_kandidaten = []   # Keypoints in Original-Koordinaten
-bild_akt = geglättet.copy()
-
-for stufe in range(N_STUFEN):
-    kps = fast.detect(bild_akt, None)
-
-    # Schritt 4: Rückrechnung in Original-Koordinaten (× 1.2^k)
-    faktor = SKALA ** stufe
-    for k in kps:
-        alle_kandidaten.append(cv2.KeyPoint(
-            x=k.pt[0] * faktor,
-            y=k.pt[1] * faktor,
-            size=k.size * faktor,
-            response=k.response,
-            octave=stufe
-        ))
-
-    h, w = bild_akt.shape
-    print(f"Stufe {stufe}: {w:4d}×{h:3d} px → {len(kps):4d} FAST-Ecken")
-
-    if stufe < N_STUFEN - 1:
-        bild_akt = cv2.resize(bild_akt, (int(w / SKALA), int(h / SKALA)))
-
-print(f"\nFAST-Kandidaten gesamt (alle Stufen): {len(alle_kandidaten)}")
-
-# ──────────────────────────────────────────────
-# Schritt 5: Quadtree-Verteilung
-# ──────────────────────────────────────────────
 def apply_quadtree(kps, w, h, grid_nx=15, grid_ny=8):
-    """Verteile Features gleichmäßig mit Quadtree"""
-    cw, ch = w // grid_nx, h // grid_ny
+    """Verteile Features gleichmäßig mit Quadtree:
+    pro Gitterzelle bleibt nur der stärkste Keypoint."""
+    cw, ch = max(1, w // grid_nx), max(1, h // grid_ny)
     qt_features = []
     for ty in range(grid_ny):
         for tx in range(grid_nx):
@@ -1820,49 +1764,132 @@ def apply_quadtree(kps, w, h, grid_nx=15, grid_ny=8):
                 qt_features.append(beste)
     return qt_features
 
-qt_f = apply_quadtree(alle_kandidaten, W, H, GRID_NX, GRID_NY)
-print(f"Nach Quadtree (1 pro Zelle):          {len(qt_f)}")
+
+def extrahiere_features(bild, n_stufen=8, skala=1.2, fast_threshold=15,
+                        grid_nx=15, grid_ny=8, n_top=40, verbose=True):
+    """
+    Extrahiert robuste, gleichmäßig verteilte Keypoints aus einem
+    beliebigen Bild.
+
+    Parameter:
+      bild           beliebiges Bild (BGR-Farbbild oder Graustufen)
+      n_stufen       Anzahl Pyramidenstufen
+      skala          Skalierungsfaktor der Pyramide
+      fast_threshold Schwellenwert t des FAST-Detektors
+      grid_nx/ny     Quadtree-Gitter (wird an kleine Bilder angepasst)
+      n_top          finale Anzahl Keypoints (Top-Harris)
+
+    Rückgabe: Liste von cv2.KeyPoint in Original-Koordinaten
+    """
+    # ── Schritt 1: Graustufen + Gauss-Filter ──
+    # Farbbild? → I = 0.299·R + 0.587·G + 0.114·B (macht cv2 intern)
+    if bild.ndim == 3:
+        grau = cv2.cvtColor(bild, cv2.COLOR_BGR2GRAY)
+    else:
+        grau = bild.copy()
+
+    # 5×5 Gauss-Kernel, σ=1: glättet Rauschen, erhält echte Kanten
+    geglättet = cv2.GaussianBlur(grau, (5, 5), 1)
+
+    H, W = geglättet.shape
+    if verbose:
+        print(f"Bildgröße: {W} x {H} Pixel")
+
+    # ── Schritt 2+3: Bildpyramide + FAST auf allen Stufen ──
+    fast = cv2.FastFeatureDetector_create(threshold=fast_threshold,
+                                          nonmaxSuppression=True)
+
+    alle_kandidaten = []   # Keypoints in Original-Koordinaten
+    bild_akt = geglättet.copy()
+
+    for stufe in range(n_stufen):
+        h, w = bild_akt.shape
+        if min(h, w) < 32:   # Stufe zu klein → Pyramide beenden
+            break
+
+        kps = fast.detect(bild_akt, None)
+
+        # Schritt 4: Rückrechnung in Original-Koordinaten (× skala^k)
+        faktor = skala ** stufe
+        for k in kps:
+            alle_kandidaten.append(cv2.KeyPoint(
+                x=k.pt[0] * faktor,
+                y=k.pt[1] * faktor,
+                size=k.size * faktor,
+                response=k.response,
+                octave=stufe
+            ))
+
+        if verbose:
+            print(f"Stufe {stufe}: {w:4d}×{h:3d} px → {len(kps):4d} FAST-Ecken")
+
+        bild_akt = cv2.resize(bild_akt, (int(w / skala), int(h / skala)))
+
+    if verbose:
+        print(f"\nFAST-Kandidaten gesamt (alle Stufen): {len(alle_kandidaten)}")
+
+    # ── Schritt 5: Quadtree-Verteilung ──
+    # Gitter an Bildgröße anpassen, damit auch kleine Bilder funktionieren
+    nx = min(grid_nx, max(1, W // 30))
+    ny = min(grid_ny, max(1, H // 30))
+    qt_f = apply_quadtree(alle_kandidaten, W, H, nx, ny)
+    if verbose:
+        print(f"Nach Quadtree ({nx}×{ny}-Gitter, 1 pro Zelle): {len(qt_f)}")
+
+    # ── Schritt 6: Harris Corner Scoring ──
+    # R = det(M) − k·trace(M)², k ≈ 0.04
+    harris = cv2.cornerHarris(geglättet.astype(np.float32),
+                              blockSize=3, ksize=3, k=0.04)
+
+    kps_hs = [(k, float(harris[int(k.pt[1]), int(k.pt[0])]))
+              for k in qt_f
+              if 0 <= int(k.pt[1]) < harris.shape[0]
+              and 0 <= int(k.pt[0]) < harris.shape[1]]
+    kps_hs.sort(key=lambda x: -x[1])
+
+    n_behalten = min(n_top, len(kps_hs))
+    keypoints_final = [k for k, s in kps_hs[:n_behalten]]
+
+    # ── Ergebnis: der Feature-Extraction-Trichter ──
+    if verbose:
+        print(f"Nach Top-Harris: {n_behalten}")
+        print(f"\nTrichter: {len(alle_kandidaten)} FAST → "
+              f"{len(qt_f)} Quadtree → {n_behalten} Top-Harris")
+        print("\nFinale Keypoints (x, y, Stufe, Harris-Score):")
+        for (k, score) in kps_hs[:10]:
+            print(f"  ({k.pt[0]:6.1f}, {k.pt[1]:6.1f})  "
+                  f"Stufe {k.octave}  R = {score:+.4f}")
+        print("  ...")
+
+    return keypoints_final
+
 
 # ──────────────────────────────────────────────
-# Schritt 6: Harris Corner Scoring
+# Beispielaufruf — hier eigenes Bild einsetzen
 # ──────────────────────────────────────────────
-# R = det(M) − k·trace(M)², k ≈ 0.04
-harris = cv2.cornerHarris(geglättet.astype(np.float32),
-                          blockSize=3, ksize=3, k=0.04)
+if __name__ == "__main__":
+    bild = cv2.imread("mein_bild.png")   # <-- eigener Bildpfad
+    if bild is None:
+        raise FileNotFoundError("Bild konnte nicht geladen werden — "
+                                "Pfad prüfen!")
 
-kps_hs = [(k, float(harris[int(k.pt[1]), int(k.pt[0])]))
-          for k in qt_f
-          if 0 <= int(k.pt[1]) < harris.shape[0]
-          and 0 <= int(k.pt[0]) < harris.shape[1]]
-kps_hs.sort(key=lambda x: -x[1])
-
-n_behalten = min(N_TOP, len(kps_hs))
-keypoints_final = [k for k, s in kps_hs[:n_behalten]]
-
-print(f"Nach Top-Harris:                      {n_behalten}")
-
-# ──────────────────────────────────────────────
-# Ergebnis: der Feature-Extraction-Trichter
-# ──────────────────────────────────────────────
-print(f"\nTrichter: {len(alle_kandidaten)} FAST → "
-      f"{len(qt_f)} Quadtree → {n_behalten} Top-Harris")
-print("\nFinale Keypoints (x, y, Stufe, Harris-Score):")
-for (k, score) in kps_hs[:10]:
-    print(f"  ({k.pt[0]:6.1f}, {k.pt[1]:6.1f})  "
-          f"Stufe {k.octave}  R = {score:+.4f}")
-print("  ...")
+    keypoints = extrahiere_features(bild)
+    print(f"\n{len(keypoints)} finale Keypoints extrahiert.")
 ```
 
 </details>
 
 ### Visuelle Odometrie
 <details markdown="1">
-<summary><b>Vollständige Implementierung anzeigen (12_visuelle_odometrie.qmd)</b></summary>
+<summary><b>Vollständige Implementierung anzeigen</b></summary>
 
 ```python
 
 """
-Visuelle Odometrie — Logik (ohne Plots)
+Visuelle Odometrie — wiederverwendbare Implementierung (Allgemeinfall)
+
+Funktioniert mit jeder beliebigen Bildfolge (≥ 2 Frames,
+Farbe oder Graustufen).
 
 Pipeline (Kapitel 1.2):
   1. ORB-Features: Orientierung θ (Intensity Centroid)
@@ -1875,108 +1902,148 @@ Pipeline (Kapitel 1.2):
 import cv2
 import numpy as np
 import glob
+import os
+
+
+def berechne_trajektorie(frames, K=None, nfeatures=500, ratio=0.75,
+                         verbose=True):
+    """
+    Berechnet die Kamera-Trajektorie aus einer beliebigen Bildfolge.
+
+    Parameter:
+      frames     Liste von Bildern (BGR oder Graustufen), zeitlich sortiert
+      K          Kamera-Matrix 3×3; None → generische Schätzung
+                 (echte Kalibrierung liefert deutlich genauere Ergebnisse!)
+      nfeatures  Anzahl ORB-Features pro Frame
+      ratio      Schwellenwert des Lowe-Ratio-Tests
+
+    Rückgabe: Liste der Kamera-Positionen (np.array mit x, y, z)
+    """
+    if len(frames) < 2:
+        raise ValueError("Mindestens 2 Frames nötig!")
+
+    # Farbbilder → Graustufen
+    frames_gray = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) if f.ndim == 3 else f
+                   for f in frames]
+
+    # ── Kamera-Parameter ──
+    h0, w0 = frames_gray[0].shape
+    if K is None:
+        # Generische Schätzung: Brennweite ≈ Bilddiagonale,
+        # Hauptpunkt = Bildmitte
+        fx = fy = float(max(w0, h0))
+        cx, cy = w0 / 2, h0 / 2
+    else:
+        fx, fy = K[0, 0], K[1, 1]
+        cx, cy = K[0, 2], K[1, 2]
+
+    # ── Schritt 1+2: ORB (θ + steered BRIEF) und Matcher ──
+    # ORB berechnet intern:
+    #   θ = atan2(m01, m10)  (Helligkeits-Schwerpunkt im 31×31 Patch)
+    #   Deskriptor: 256 um θ gedrehte Pixelpaar-Vergleiche → 256 Bit
+    orb = cv2.ORB_create(nfeatures=nfeatures)
+    bf  = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+    # Speichere alle R und t Matrizen der Frame-Paare
+    poses = []
+
+    for pair_idx in range(len(frames_gray) - 1):
+        frame_a = frames_gray[pair_idx]
+        frame_b = frames_gray[pair_idx + 1]
+
+        # ORB Features (Position, θ, Deskriptor)
+        kp_a, des_a = orb.detectAndCompute(frame_a, None)
+        kp_b, des_b = orb.detectAndCompute(frame_b, None)
+
+        if des_a is None or des_b is None:
+            if verbose:
+                print(f"Paar {pair_idx} → {pair_idx+1}: "
+                      f"keine Features — übersprungen")
+            continue
+
+        # ── Schritt 3: Matching (Hamming) + Lowe's Ratio-Test ──
+        matches_raw = bf.knnMatch(des_a, des_b, k=2)
+        good_m = []
+        for pair in matches_raw:
+            if len(pair) == 2:
+                m, n = pair
+                if m.distance < ratio * n.distance:
+                    good_m.append(m)
+
+        if len(good_m) < 5:
+            if verbose:
+                print(f"Paar {pair_idx} → {pair_idx+1}: nur "
+                      f"{len(good_m)} Matches (< 5) — übersprungen")
+            continue
+
+        pts_a = np.float32([kp_a[m.queryIdx].pt for m in good_m])
+        pts_b = np.float32([kp_b[m.trainIdx].pt for m in good_m])
+
+        # ── Schritt 4: Essential Matrix (RANSAC) + Pose ──
+        E, _ = cv2.findEssentialMat(pts_a, pts_b, focal=fx, pp=(cx, cy),
+                                    method=cv2.RANSAC, prob=0.999,
+                                    threshold=1.0)
+        if E is None:
+            if verbose:
+                print(f"Paar {pair_idx} → {pair_idx+1}: "
+                      f"keine Essential Matrix — übersprungen")
+            continue
+
+        # SVD-Zerlegung von E → R, t (t nur als Richtung, Mono-Skala!)
+        n_inlier, R, t, mask = cv2.recoverPose(E, pts_a, pts_b,
+                                               focal=fx, pp=(cx, cy))
+        poses.append((R, t))
+
+        if verbose:
+            print(f"Paar {pair_idx} → {pair_idx+1}: "
+                  f"{len(good_m):3d} gute Matches, {n_inlier:3d} Inlier")
+
+    # ── Schritt 5: Trajektorie akkumulieren ──
+    positions = [np.array([0.0, 0.0, 0.0])]  # Startposition
+    R_global  = np.eye(3)
+
+    for R_i, t_i in poses:
+        # Neue Position im globalen Koordinatensystem
+        pos_new = positions[-1] + R_global.T @ t_i.flatten()
+        positions.append(pos_new)
+
+        # Globale Rotation aktualisieren
+        R_global = R_global @ R_i
+
+    # ── Ergebnisse ──
+    if verbose:
+        total_distance = sum(np.linalg.norm(positions[i+1] - positions[i])
+                             for i in range(len(positions) - 1))
+        print(f"\nKamera-Trajektorie über {len(positions)} Frames:")
+        for i, pos in enumerate(positions):
+            print(f"  Frame {i}: Position "
+                  f"({pos[0]:+.3f}, {pos[1]:+.3f}, {pos[2]:+.3f})")
+        print(f"\nGesamtbahn: {total_distance:.3f} Einheiten "
+              f"(Mono: Skala unbekannt)")
+        print("Fehler akkumuliert sich über Zeit → das Drift-Problem!")
+        print("→ Lösung: Lokales Mapping/BA (2.x) und Loop Closure (3.x)")
+
+    return positions
+
 
 # ──────────────────────────────────────────────
-# Konfiguration
+# Beispielaufruf — hier eigenen Bildordner einsetzen
 # ──────────────────────────────────────────────
-BILD_ORDNER = "../cam0"
-STRIDE      = 25   # Abstand zwischen den Demo-Frames
-N_FRAMES    = 6    # → 5 konsekutive Frame-Paare
+if __name__ == "__main__":
+    BILD_ORDNER = "meine_bilder"   # <-- eigener Ordner mit Bildfolge
 
-# ──────────────────────────────────────────────
-# Frames laden
-# ──────────────────────────────────────────────
-bildpfade   = sorted(glob.glob(f"{BILD_ORDNER}/*.png"))
-demo_pfade  = bildpfade[::STRIDE][:N_FRAMES]
-frames_gray = [cv2.cvtColor(cv2.imread(p), cv2.COLOR_BGR2GRAY)
-               for p in demo_pfade]
-print(f"{len(frames_gray)} Frames geladen "
-      f"(jeder {STRIDE}. aus {BILD_ORDNER})")
+    bildpfade = sorted(glob.glob(os.path.join(BILD_ORDNER, "*.png"))
+                       + glob.glob(os.path.join(BILD_ORDNER, "*.jpg")))
+    if len(bildpfade) < 2:
+        raise FileNotFoundError("Mindestens 2 Bilder im Ordner nötig — "
+                                "Pfad prüfen!")
 
-# ──────────────────────────────────────────────
-# Schritt 1+2: ORB (θ + steered BRIEF) und Matcher
-# ──────────────────────────────────────────────
-# ORB berechnet intern:
-#   θ = atan2(m01, m10)  (Helligkeits-Schwerpunkt im 31×31 Patch)
-#   Deskriptor: 256 um θ gedrehte Pixelpaar-Vergleiche → 256 Bit
-orb = cv2.ORB_create(nfeatures=500)
-bf  = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+    frames = [cv2.imread(p) for p in bildpfade]
+    print(f"{len(frames)} Frames geladen aus '{BILD_ORDNER}'")
 
-# Speichere alle R und t Matrizen aus den 5 Paaren
-poses = []
-
-for pair_idx in range(N_FRAMES - 1):
-    frame_a = frames_gray[pair_idx]
-    frame_b = frames_gray[pair_idx + 1]
-
-    # ORB Features (Position, θ, Deskriptor)
-    kp_a, des_a = orb.detectAndCompute(frame_a, None)
-    kp_b, des_b = orb.detectAndCompute(frame_b, None)
-
-    if des_a is None or des_b is None:
-        continue
-
-    # ── Schritt 3: Matching (Hamming) + Lowe's Ratio-Test ──
-    matches_raw = bf.knnMatch(des_a, des_b, k=2)
-    good_m = []
-    for pair in matches_raw:
-        if len(pair) == 2:
-            m, n = pair
-            if m.distance < 0.75 * n.distance:
-                good_m.append(m)
-
-    if len(good_m) < 5:
-        continue
-
-    pts_a = np.float32([kp_a[m.queryIdx].pt for m in good_m])
-    pts_b = np.float32([kp_b[m.trainIdx].pt for m in good_m])
-
-    # ── Schritt 4: Essential Matrix (RANSAC) + Pose ──
-    fx, fy = 500, 500
-    cx, cy = frame_a.shape[1] // 2, frame_a.shape[0] // 2
-
-    E, _ = cv2.findEssentialMat(pts_a, pts_b, focal=fx, pp=(cx, cy),
-                                method=cv2.RANSAC, prob=0.999,
-                                threshold=1.0)
-    if E is None:
-        continue
-
-    # SVD-Zerlegung von E → R, t (t nur als Richtung, Mono-Skala!)
-    n_inlier, R, t, mask = cv2.recoverPose(E, pts_a, pts_b,
-                                           focal=fx, pp=(cx, cy))
-    poses.append((R, t))
-
-    print(f"Paar {pair_idx} → {pair_idx+1}: "
-          f"{len(good_m):3d} gute Matches, {n_inlier:3d} Inlier")
-
-# ──────────────────────────────────────────────
-# Schritt 5: Trajektorie akkumulieren
-# ──────────────────────────────────────────────
-positions = [np.array([0.0, 0.0, 0.0])]  # Startposition
-R_global  = np.eye(3)
-
-for R_i, t_i in poses:
-    # Neue Position im globalen Koordinatensystem
-    pos_new = positions[-1] + R_global.T @ t_i.flatten()
-    positions.append(pos_new)
-
-    # Globale Rotation aktualisieren
-    R_global = R_global @ R_i
-
-# ──────────────────────────────────────────────
-# Ergebnisse
-# ──────────────────────────────────────────────
-total_distance = sum(np.linalg.norm(positions[i+1] - positions[i])
-                     for i in range(len(positions) - 1))
-
-print(f"\nKamera-Trajektorie über {len(positions)} Frames:")
-for i, pos in enumerate(positions):
-    print(f"  Frame {i}: Position "
-          f"({pos[0]:+.3f}, {pos[1]:+.3f}, {pos[2]:+.3f})")
-
-print(f"\nGesamtbahn: {total_distance:.3f} Einheiten (Mono: Skala unbekannt)")
-print("Fehler akkumuliert sich über Zeit → das Drift-Problem!")
-print("→ Lösung: Lokales Mapping/BA (2.x) und Loop Closure (3.x)")
+    # Optional: eigene Kamera-Matrix übergeben, z.B.
+    # K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
+    trajektorie = berechne_trajektorie(frames, K=None)
 ```
 
 </details>
